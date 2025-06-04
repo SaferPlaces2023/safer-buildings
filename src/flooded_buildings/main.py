@@ -148,7 +148,7 @@ def validate_args(
     bbox: tuple[float, float, float, float] | None = None,
     out: str | None = None,
     t_srs: str | None = None,
-    providers: list[str] | None = None,
+    provider: list[str] | None = None,
     feature_filters: dict[str, dict] | None = None
 ):
     
@@ -199,57 +199,45 @@ def validate_args(
     else:
         t_srs = utils.get_raster_crs(waterdepth_filename)
         
-    if providers is not None:
-        if not isinstance(providers, (list, tuple)):
-            raise TypeError("providers must be a list of strings.")
-        providers = list(providers)  # Ensure providers is a list
-        if not all(isinstance(provider, str) for provider in providers):
-            raise TypeError("All providers must be strings.")
-        if any(provider not in Providers._member_names_ for provider in providers):
-            raise ValueError(f"Invalid provider(s) in providers: {', '.join(providers)}. Valid providers are: {Providers._member_names_}.")
-    else:
-        providers = Providers._member_names_
+        
+    if provider is None:
+        if buildings_filename is not None:
+            raise ValueError("A provider must be provided if buildings_filename is given.")
+        else:
+            provider = Providers.OVERTURE.name
+    if type(provider) is not str:
+        raise TypeError("provider must be a string")
+    if provider not in Providers._member_names_:
+        raise ValueError(f"Invalid provider: {provider}. Valid providers are: {Providers._member_names_}.")
+    
     
     if feature_filters is not None:
-        if not isinstance(feature_filters, dict):
-            raise TypeError("feature_filters must be a dictionary.")
-        for provider, provider_filters in feature_filters.items():
-            if not isinstance(provider, str):
-                raise TypeError("Provider names in feature_filters must be strings.")
-            if provider not in providers:
-                raise ValueError(f"Provider '{provider}' in feature_filters is not in the list of providers: {providers}.")
-            if provider not in Providers._member_names_:
-                raise ValueError(f"Invalid provider '{provider}' in feature_filters. Valid providers are: {Providers._member_names_}.")
-            if not isinstance(provider_filters, (dict, list)):
-                raise TypeError("Filters for each provider must be a dictionary or a list.")
-            if isinstance(provider_filters, dict):
-                provider_filters = [provider_filters]
-            
-            for idxf, filters in enumerate(provider_filters):
-                for f_key, f_value in filters.items():
-                    if not isinstance(f_key, str):
-                        raise TypeError("Filter keys must be strings.")
-                    if not isinstance(f_value, (list, str, int)):
-                        raise TypeError("Filter values must be a list, string, or integer.")
-                    if not isinstance(f_value, list):
-                        f_value = [f_value]
-                    if provider == Providers.OVERTURE:
-                        if f_key == 'subtype':
-                            if any(subtype not in OvertureSubtypes._member_names_ for subtype in f_value):
-                                raise ValueError(f"Invalid subtype(s) in feature_filters for OVERTURE: {', '.join(f_value)}. Valid subtypes are: {OvertureSubtypes._member_names_}.")
-                        elif f_key == 'class':
-                            if any(cl not in OvertureClass._member_names_ for cl in f_value):
-                                raise ValueError(f"Invalid class(es) in feature_filters for OVERTURE: {', '.join(f_value)}. Valid classes are: {OvertureClass._member_names_}.")
-                        else:
-                            raise ValueError(f"Invalid filter key '{f_key}' for provider '{provider}'. Valid keys are: 'subtype', 'class'.")
-                    # TODO: Implement other providers
-                    
-                    filters[f_key] = f_value
-                provider_filters[idxf] = filters
-            feature_filters[provider] = provider_filters
-                            
+        if not isinstance(feature_filters, (dict, list)):
+            raise TypeError("feature_filters must be a dictionary or a list.")
+        if isinstance(feature_filters, dict):
+            feature_filters = [feature_filters]
+        for idxf, filters in enumerate(feature_filters):
+            for f_key, f_value in filters.items():
+                if not isinstance(f_key, str):
+                    raise TypeError("Filter keys must be strings.")
+                if not isinstance(f_value, (list, str, int)):
+                    raise TypeError("Filter values must be a list, string, or integer.")
+                if not isinstance(f_value, list):
+                    f_value = [f_value]
+                if provider == Providers.OVERTURE:
+                    if f_key == 'subtype':
+                        if any(subtype not in OvertureSubtypes._member_names_ for subtype in f_value):
+                            raise ValueError(f"Invalid subtype(s) in feature_filters for OVERTURE: {', '.join(f_value)}. Valid subtypes are: {OvertureSubtypes._member_names_}.")
+                    elif f_key == 'class':
+                        if any(cl not in OvertureClass._member_names_ for cl in f_value):
+                            raise ValueError(f"Invalid class(es) in feature_filters for OVERTURE: {', '.join(f_value)}. Valid classes are: {OvertureClass._member_names_}.")
+                    else:
+                        raise ValueError(f"Invalid filter key '{f_key}' for provider '{provider}'. Valid keys are: 'subtype', 'class'.")
+                # TODO: Implement other providers
+                filters[f_key] = f_value
+            feature_filters[idxf] = filters                            
     else:
-        feature_filters = {provider: [] for provider in providers}
+        feature_filters = []
         
     print("## Input arguments validated successfully.")
     print(f"### Water depth file: {waterdepth_filename}")
@@ -257,17 +245,17 @@ def validate_args(
     print(f"### Bounding box: {bbox}")
     print(f"### Output file: {out}")
     print(f"### Target SRS: {t_srs}")
-    print(f"### Providers: {providers}")
+    print(f"### Providers: {provider}")
     print(f"### Feature filters: {feature_filters}")
         
-    return waterdepth_filename, buildings_filename, bbox, out, t_srs, providers, feature_filters
+    return waterdepth_filename, buildings_filename, bbox, out, t_srs, provider, feature_filters
 
 
 def retrieve_buildings(
     buildings_filename: str | None, 
     bbox: tuple[float, float, float, float] | None,
-    providers: dict[str, str] | None
-) -> str:
+    provider: str | None
+) -> gpd.GeoDataFrame:
     
     """
     Retrieve buildings data from specified providers.
@@ -276,33 +264,28 @@ def retrieve_buildings(
     """
     
     if buildings_filename is not None:
-        buildings = gpd.read_file(buildings_filename)
-        return buildings
+        provider_buildings = gpd.read_file(buildings_filename)
+        print(f"## Using provided buildings data from {buildings_filename}. Found {len(provider_buildings)} buildings.")
     
     else:
-        provider_buildings = dict() 
-        
-        for provider in providers:
+        print(f"## Retrieving buildings data from provider: {provider} ...")
             
-            print(f"## Retrieving buildings data from provider: {provider} ...")
-            
-            if provider == Providers.OVERTURE:
-                buildings_filename = utils.temp_filename(ext='shp', prefix='overture_buildings_')
-                _ = eedem_download(
-                    dataset = 'OVERTURE/BUILDINGS',
-                    bbox = utils.shapely_bbox_2_eedem_bbox(box(*bbox)),
-                    band=None,
-                    out = buildings_filename,
-                    dmg = True
-                )
-                provider_buildings[Providers.OVERTURE.name] = buildings_filename
+        if provider == Providers.OVERTURE:
+            buildings_filename = utils.temp_filename(ext='shp', prefix='overture_buildings_')
+            _ = eedem_download(
+                dataset = 'OVERTURE/BUILDINGS',
+                bbox = utils.shapely_bbox_2_eedem_bbox(box(*bbox)),
+                band=None,
+                out = buildings_filename,
+                dmg = True
+            )
                 
             # TODO: Implement other providers
-            
-            print(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(gpd.read_file(buildings_filename))} buildings)")
-            provider_buildings[provider] = buildings_filename
+             
+        provider_buildings = gpd.read_file(buildings_filename)
+        print(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(gpd.read_file(buildings_filename))} buildings)")        
         
-        return provider_buildings
+    return provider_buildings
 
 
 def get_waterdepth_mask(
@@ -327,14 +310,13 @@ def get_waterdepth_mask(
 def get_flooded_buildings(
     waterdepth_filename: str,
     waterdepth_mask: gpd.GeoDataFrame | None,
-    buildings_filename: str | gpd.GeoDataFrame,
+    buildings: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
     
     """ 
     Get flooded buildings by intersecting water depth polygons with buildings.
     """
     
-    buildings = gpd.read_file(buildings_filename) if type(buildings_filename) is str else buildings_filename
     buildings = utils.ensure_geodataframe_crs(buildings, utils.get_raster_crs(waterdepth_filename))
     
     # TODO: crop to bbox if defined (assume user privided bbox is 4326)
@@ -351,7 +333,7 @@ def get_flooded_buildings(
     buildings['is_flooded'] = buildings['__tmp_identifier__'].apply(lambda tmp_id: tmp_id in flooded_buildings['__tmp_identifier__'].to_list())
     buildings.drop(columns=['__tmp_identifier__'], inplace=True)
     
-    print(f"### Found {len(flooded_buildings)} flooded buildings out of {len(buildings)} total buildings in {buildings_filename}.")
+    print(f"### Found {len(flooded_buildings)} flooded buildings out of {len(buildings)} total buildings.")
     
     return buildings
 
@@ -391,7 +373,7 @@ def compute_flood(
     bbox: tuple[float, float, float, float] | None = None,
     out: str | None = None,
     t_srs: str | None = None,
-    providers: list[str] | None = None,
+    provider: list[str] | None = None,
     feature_filters: dict[str, list[dict[str, list|str|int]]] | None = None,
 ) -> str:
     
@@ -414,23 +396,23 @@ def compute_flood(
     
     # DOC: 1 — Validate args.
     print("# Validating input arguments ...")
-    waterdepth_filename, buildings_filename, bbox, out, t_srs, providers, feature_filters = validate_args(
+    waterdepth_filename, buildings_filename, bbox, out, t_srs, provider, feature_filters = validate_args(
         waterdepth_filename=waterdepth_filename,
         buildings_filename=buildings_filename,
         bbox=bbox,
         out=out,
         t_srs=t_srs,
-        providers=providers,
+        provider=provider,
         feature_filters=feature_filters
     )
     
     
     # DOC: 2 — Retrieve buildings
-    print('# Retrieving buildings data ...')
-    buildings_providers_filenames = retrieve_buildings(
+    print(f'# Retrieving buildings data from provider {provider} ...')
+    provider_buildings = retrieve_buildings(
         buildings_filename=buildings_filename,
         bbox=bbox,
-        providers=providers
+        provider=provider
     )
     
     
@@ -447,57 +429,47 @@ def compute_flood(
     
     # DOC: 4 — Intersect buildings with water depth
     print('# Intersecting buildings with water depth ...')
-    floodings_providers_gdfs = dict()
-    for provider, buildings_filename in buildings_providers_filenames.items():
-        print(f"## Processing intersection with provider: {provider} ...")
-        floodings_providers_gdfs[provider] = get_flooded_buildings(
-            waterdepth_filename = waterdepth_filename,
-            waterdepth_mask = waterdepth_polygonized,
-            buildings_filename = buildings_filename
-        )
+    provider_flooding = get_flooded_buildings(
+        waterdepth_filename = waterdepth_filename,
+        waterdepth_mask = waterdepth_polygonized,
+        buildings = provider_buildings
+    )
         
     
     # DOC: 5 — Filter features
     print('# Filtering features ...')
-    for provider, provider_filters in feature_filters.items():
-        print(f"## Filtering provider: {provider} with filters: {provider_filters}")
-        provider_gdf = floodings_providers_gdfs[provider]
-        filtered_provider_gdf = filter_by_feature(
-            gdf = provider_gdf,
-            feature_filters = provider_filters
-        )
-        print(f"### Filtered {len(filtered_provider_gdf)} buildings out from {len(provider_gdf)} for provider {provider}.")
-        floodings_providers_gdfs[provider] = filtered_provider_gdf
+    filtered_provider_gdf = filter_by_feature(
+        gdf = provider_flooding,
+        feature_filters = feature_filters
+    )
+    print(f"## Filtered {len(filtered_provider_gdf)} buildings out from {len(provider_flooding)}.")
         
     
     # DOC: 6 — Return results
     print('# Preparing geojson output results ...')
-    out_data = dict()
-    for provider, provider_gdf in floodings_providers_gdfs.items():
-        provider_feature_collection = provider_gdf.to_geo_dict()
-        provider_feature_collection['metadata'] = {
-            'provider': provider,
-            'buildings_count': len(provider_gdf),
-            'flooded_buildings_count': len(provider_gdf['is_flooded'])
+    provider_feature_collection = filtered_provider_gdf.to_geo_dict()
+    provider_feature_collection['metadata'] = {
+        'provider': provider,
+        'buildings_count': len(filtered_provider_gdf),
+        'flooded_buildings_count': len(filtered_provider_gdf['is_flooded'])
+    }
+    provider_feature_collection['crs'] = {
+        "type": "name",
+        "properties": {
+            "name": f"urn:ogc:def:crs:{t_srs.replace(':', '::')}"  # REF: https://gist.github.com/sgillies/1233327 lines 256:271
         }
-        provider_feature_collection['crs'] = {
-            "type": "name",
-            "properties": {
-                "name": f"urn:ogc:def:crs:{t_srs.replace(':', '::')}"  # REF: https://gist.github.com/sgillies/1233327 lines 256:271
-            }
-        }
-        print(f"## Provider {provider} feature collection prepared with {len(provider_feature_collection['features'])} features.")
-        out_data[provider] = provider_feature_collection
+    }
+    print(f"## Buildings feature collection prepared with {len(provider_feature_collection['features'])} features.")
         
     
     # DOC: 7 — Save results to file
     print(f'# Saving results to {out} ...')
-    for provider, provider_feature_collection in out_data.items():
-        out_provider_fname = f'{out}__{provider}.geojson'
-        with open(out_provider_fname, 'w') as f:
-            json.dump(provider_feature_collection, f, indent=2)
-        print(f"## Results for provider {provider} saved to {out_provider_fname}")
-    return out_data
+    out_provider_fname = f'{out}__{provider}.geojson'
+    with open(out_provider_fname, 'w') as f:
+        json.dump(provider_feature_collection, f, indent=2)
+    print(f"## Results saved to {out_provider_fname}")
+    
+    return provider_feature_collection
 
 
 
@@ -509,15 +481,15 @@ def compute_flood(
 @click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy).')
 @click.option('--out', type=click.Path(), default=None, help='Output path for the results.')
 @click.option('--t_srs', type=str, default=None, help='Target spatial reference system (EPSG code).')
-@click.option('--providers', type=str, multiple=True, default=None, help='List of data providers (can be repeated).')
+@click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, REGIONE_EMILIA_ROMAGNA).')
 @click.option('--filters', type=str, default=None, help='Filters for providers-features in JSON format.')
-def main(wd, buildings, bbox, out, t_srs, providers, filters):
+def main(wd, buildings, bbox, out, t_srs, provider, filters):
     """
     Main function to run the flooded buildings analysis from command line.
     
     Example:
     
-    safer-buildings --wd tests\rimini-wd.tif --providers OVERTURE --filters "{'OVERTURE': [{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}]}"
+    safer-buildings --wd tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}]"
     
     in this example, the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """
@@ -534,7 +506,7 @@ def main(wd, buildings, bbox, out, t_srs, providers, filters):
     print(f"## Bounding box: {bbox}")
     print(f"## Output file: {out}")
     print(f"## Target SRS: {t_srs}")
-    print(f"## Providers: {providers}")
+    print(f"## Provider: {provider}")
     print(f"## Feature filters: {filters}")
     
     result = compute_flood(
@@ -543,7 +515,7 @@ def main(wd, buildings, bbox, out, t_srs, providers, filters):
         bbox = tuple(bbox) if bbox else None,
         out = out,
         t_srs = t_srs,
-        providers = providers,
+        provider = provider,
         feature_filters = filters
     )
     
