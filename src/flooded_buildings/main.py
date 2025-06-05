@@ -27,8 +27,8 @@ logger.setLevel(logging.INFO)
 
 
 
-# IDEA: --list-providers arg shows detailed description of providers
-# IDEA: --summary -> add metadata with aggregate stats ( n buildings, n flooded buildings, min,avg,max wd for each category (provider dependend) of buildings)
+# TODO: --list-providers → shows detailed description of providers
+# TODO: --summary → add metadata with aggregate stats ( n buildings, n flooded buildings, min,avg,max wd for each category (provider dependend) of buildings)
 
 
 
@@ -74,6 +74,7 @@ def validate_args(
     t_srs: str | None = None,
     provider: list[str] | None = None,
     feature_filters: dict[str, dict] | None = None,
+    only_flood: bool = False,
     compute_stats: bool = False
 ):
     
@@ -162,6 +163,11 @@ def validate_args(
     else:
         feature_filters = []
         
+    if only_flood is None:
+        only_flood = False
+    if type(only_flood) is not bool:
+        raise TypeError("only_flood must be a boolean value.")
+        
     if compute_stats is None:
         compute_stats = False
     if type(compute_stats) is not bool:
@@ -176,9 +182,10 @@ def validate_args(
     print(f"### Target SRS: {t_srs}")
     print(f"### Providers: {provider}")
     print(f"### Feature filters: {feature_filters}")
+    print(f"### Only flood: {only_flood}")
     print(f"### Compute stats: {compute_stats}")
         
-    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, compute_stats
+    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats
 
 
 def retrieve_buildings(
@@ -234,7 +241,7 @@ def retrieve_buildings(
                     "geometry": ','.join([str(b) for b in bbox4326]),
                     "geometryType": "esriGeometryEnvelope",
                     "inSR": "4326",
-                    "outSR": "7791",
+                    "outSR": "4326",
                     "spatialRel": "esriSpatialRelIntersects",
                     "where": "1=1",
                     "outFields": "*",
@@ -274,15 +281,17 @@ def retrieve_buildings(
                         ) 
                         for f in data['features']
                     ]
+                    do_buffer = True
                 else:
                     raise ValueError(f"Unsupported geometry type for service {service_id}: {RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].geometryType}")
 
-                service_name = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].name
                 rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
-                rest_gdf['feature_class'] = service_name
+                rest_gdf['service_id'] = service_id
+                rest_gdf['service_class'] = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].name.iloc[0]
                 
                 if do_buffer:
                     buffer_meters = 20
+                    rest_gdf = rest_gdf.to_crs("EPSG:7791")
                     rest_gdf['geometry'] = rest_gdf.buffer(buffer_meters)
                     
                 return rest_gdf
@@ -408,6 +417,7 @@ def compute_flood(
     t_srs: str | None = None,
     provider: list[str] | None = None,
     feature_filters: dict[str, list[dict[str, list|str|int]]] | None = None,
+    only_flood: bool = False,
     compute_stats: bool = False
 ) -> str:
     
@@ -430,7 +440,7 @@ def compute_flood(
     
     # DOC: 1 — Validate args.
     print("# Validating input arguments ...")
-    waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, compute_stats = validate_args(
+    waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats = validate_args(
         waterdepth_filename=waterdepth_filename,
         buildings_filename=buildings_filename,
         wd_thresh=wd_thresh,
@@ -439,6 +449,7 @@ def compute_flood(
         t_srs=t_srs,
         provider=provider,
         feature_filters=feature_filters,
+        only_flood=only_flood,
         compute_stats=compute_stats
     )
     
@@ -477,6 +488,12 @@ def compute_flood(
         feature_filters = feature_filters
     )
     print(f"## Filtered {len(filtered_flooded_buildings)} buildings out from {len(flooded_buildings)}.")
+    
+    # DOC:: 5.1 — Filter only flooded buildings if requested
+    if only_flood:
+        print('# Filtering only flooded buildings ...')
+        filtered_flooded_buildings = filtered_flooded_buildings[filtered_flooded_buildings['is_flooded']]
+        print(f"## Only flooded buildings retained: {len(filtered_flooded_buildings)} out of {len(flooded_buildings)}.")
     
     
     # DOC: 6 — Compute water depth stats over flooded buildings
@@ -530,8 +547,9 @@ def compute_flood(
 @click.option('--t_srs', type=str, default=None, help='Target spatial reference system (EPSG code).')
 @click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, REGIONE-EMILIA-ROMAGNA-*).')
 @click.option('--filters', type=str, default=None, help='Filters for providers-features in JSON format.')
-@click.option('--stats', is_flag=True, required=False, default=False, help="Debug mode.")
-def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, stats):
+@click.option('--only_flood', is_flag=True, required=False, default=False, help="Only return flooded buildings (default: False).")
+@click.option('--stats', is_flag=True, required=False, default=False, help="Compute water depth statistics for flooded buildings.")
+def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, only_flood, stats):
     """
     Main function to run the flooded buildings analysis from command line.
     
@@ -557,6 +575,7 @@ def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, stats):
     print(f"## Target SRS: {t_srs}")
     print(f"## Provider: {provider}")
     print(f"## Feature filters: {filters}")
+    print(f"## Only flood: {only_flood}")
     print(f"## Stats: {stats}")
     
     result = compute_flood(
@@ -568,6 +587,7 @@ def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, stats):
         t_srs = t_srs,
         provider = provider,
         feature_filters = filters,
+        only_flood = only_flood,
         compute_stats = stats
     )
     
