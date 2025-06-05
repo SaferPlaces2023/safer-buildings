@@ -20,13 +20,15 @@ classifiers = [
 
 dependencies = [
     "numpy<2",
-    "eedem @ git+https://github.com/SaferPlaces2023/eedem.git",
     "geopandas"
 ]
 
 [project.optional-dependencies]
 with_wheel = [
     "gdal @ https://download.lfd.uci.edu/pythonlibs/archived/GDAL-3.4.3-cp311-cp311-win_amd64.whl"
+]
+with_gitlib = [
+    "eedem @ git+https://github.com/SaferPlaces2023/eedem.git",
 ]
 
 [project.scripts]
