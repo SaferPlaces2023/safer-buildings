@@ -11,7 +11,7 @@ from shapely.geometry import box, Polygon
 import geopandas as gpd
 
 _base_temp_dir = tempfile.gettempdir()
-_module_temp_dir = os.path.join(_base_temp_dir, 'flooded_buildings')
+_module_temp_dir = os.path.join(_base_temp_dir, 'safer_buildings')
 os.makedirs(_module_temp_dir, exist_ok=True)
 
 

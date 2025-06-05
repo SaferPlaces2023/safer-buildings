@@ -115,7 +115,7 @@ def validate_args(
         if type(out) is not str:
             raise TypeError("out must be a string.") 
     else:
-        out = os.path.join(os.getcwd(), f"flooded_buildings_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.geojson")
+        out = os.path.join(os.getcwd(), f"safer_buildings_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.geojson")
         
     if t_srs is not None:
         if type(t_srs) is not str:
