@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "flooded-buildings"
+name = "safer-buildings"
 version = "0.1.0"
 description = "Little procedures to get buildings at risk of flooding from a flood map"
 readme = "README.md"
@@ -27,9 +27,9 @@ dependencies = [
 ]
 
 [project.scripts]
-safer-buildings = "flooded_buildings.main:main"
+safer-buildings = "safer_buildings.main:main"
 
 [project.urls]
-Homepage = "https://github.com/SaferPlaces2023/flooded-buildings"
-Repository = "https://github.com/SaferPlaces2023/flooded-buildings"
-Issues = "https://github.com/SaferPlaces2023/flooded-buildings/issues"
+Homepage = "https://github.com/SaferPlaces2023/safer-buildings"
+Repository = "https://github.com/SaferPlaces2023/safer-buildings"
+Issues = "https://github.com/SaferPlaces2023/safer-buildings/issues"
