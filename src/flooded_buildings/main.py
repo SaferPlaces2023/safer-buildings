@@ -5,18 +5,22 @@ import json
 import click
 import time
 from enum import Enum
+import requests
 
 import numpy as np
 import pandas as pd
 
 from osgeo import gdal, ogr, osr
 from shapely.wkt import loads
-from shapely.geometry import box
+from shapely.geometry import box, Point, Polygon
 import geopandas as gpd
 
 from eedem import downloadDEM as eedem_download
 
+from collections.abc import MutableMapping
+
 from . import utils
+
 
 
 import logging
@@ -25,117 +29,40 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+# TODO: handle different crs (wd, bbox, overture, rest ecc...)
+# TODO: buffer on proj crs (geo crs goes error !!)
+# TODO: --list-providers arg shows detailed description of providers
+# TODO: --wd-stats -> min,avg,max waterdepth around flooded buildings
+# TODO: --summary -> add metadata with aggregate stats ( n buildings, n flooded buildings, min,avg,max wd for each category (provider dependend) of buildings)
+
 
 # DOC: define costants
 
 
-class Providers(str, Enum):
-    OVERTURE = 'OVERTURE'
-    REGIONE_EMILIA_ROMAGNA = 'REGIONE_EMILIA_ROMAGNA'
-    
-class OvertureSubtypes(str, Enum):
-    agricultural = 'agricultural'
-    civic = 'civic'
-    commercial = 'commercial'
-    education = 'education'
-    entertainment = 'entertainment'
-    industrial = 'industrial'
-    medical = 'medical'
-    military = 'military'
-    outbuilding = 'outbuilding'
-    religious = 'religious'
-    residential = 'residential'
-    service = 'service'
-    transportation = 'transportation'
-    
-class OvertureClass(str, Enum):
-    agricultural = 'agricultural'
-    allotment_house = 'allotment_house'
-    apartments = 'apartments'
-    barn = 'barn'
-    beach_hut = 'beach_hut'
-    boathouse = 'boathouse'
-    bridge_structure = 'bridge_structure'
-    bungalow = 'bungalow'
-    bunker = 'bunker'
-    cabin = 'cabin'
-    carport = 'carport'
-    cathedral = 'cathedral'
-    chapel = 'chapel'
-    church = 'church'
-    civic = 'civic'
-    college = 'college'
-    commercial = 'commercial'
-    cowshed = 'cowshed'
-    detached = 'detached'
-    digester = 'digester'
-    dormitory = 'dormitory'
-    dwelling_house = 'dwelling_house'
-    factory = 'factory'
-    farm = 'farm'
-    farm_auxiliary = 'farm_auxiliary'
-    fire_station = 'fire_station'
-    garage = 'garage'
-    garages = 'garages'
-    ger = 'ger'
-    glasshouse = 'glasshouse'
-    government = 'government'
-    grandstand = 'grandstand'
-    greenhouse = 'greenhouse'
-    guardhouse = 'guardhouse'
-    hangar = 'hangar'
-    hospital = 'hospital'
-    hotel = 'hotel'
-    house = 'house'
-    houseboat = 'houseboat'
-    hut = 'hut'
-    industrial = 'industrial'
-    kindergarten = 'kindergarten'
-    kiosk = 'kiosk'
-    library = 'library'
-    manufacture = 'manufacture'
-    military = 'military'
-    monastery = 'monastery'
-    mosque = 'mosque'
-    office = 'office'
-    outbuilding = 'outbuilding'
-    parking = 'parking'
-    pavilion = 'pavilion'
-    post_office = 'post_office'
-    presbytery = 'presbytery'
-    public = 'public'
-    religious = 'religious'
-    residential = 'residential'
-    retail = 'retail'
-    roof = 'roof'
-    school = 'school'
-    semi = 'semi'
-    semidetached_house = 'semidetached_house'
-    service = 'service'
-    shed = 'shed'
-    shrine = 'shrine'
-    silo = 'silo'
-    slurry_tank = 'slurry_tank'
-    sports_centre = 'sports_centre'
-    sports_hall = 'sports_hall'
-    stable = 'stable'
-    stadium = 'stadium'
-    static_caravan = 'static_caravan'
-    stilt_house = 'stilt_house'
-    storage_tank = 'storage_tank'
-    sty = 'sty'
-    supermarket = 'supermarket'
-    synagogue = 'synagogue'
-    temple = 'temple'
-    terrace = 'terrace'
-    toilets = 'toilets'
-    train_station = 'train_station'
-    transformer_tower = 'transformer_tower'
-    transportation = 'transportation'
-    trullo = 'trullo'
-    university = 'university'
-    warehouse = 'warehouse'
-    wayside_shrine = 'wayside_shrine'
+def _list_rest_layers():
+    service_url = "https://servizigis.regione.emilia-romagna.it/geoags/rest/services/portale/saferplaces/MapServer"
+    params = {
+        "where": "1=1",
+        "outFields": "*",
+        "f": "json",
+        "returnGeometry": "true"
+    }
+    headers = {
+        "User-Agent": "QGIS",
+        "Referer": "http://localhost"
+    }
+    response = requests.get(service_url, params=params, headers=headers)
+    data = response.json()
+    df_layers = pd.DataFrame(data['layers']).sort_values('id').reset_index(drop=True)
+    df_layers['provider_name'] = df_layers['id'].apply(lambda service_id: f'REGIONE-EMILIA-ROMAGNA-{service_id}')
+    return df_layers
+
+RegioneEmiliaRomagnaLayers = _list_rest_layers()
+
+_PROVIDERS = (
+    'OVERTURE',
+    * RegioneEmiliaRomagnaLayers.provider_name.to_list(),
+)
 
 
 
@@ -204,11 +131,11 @@ def validate_args(
         if buildings_filename is not None:
             raise ValueError("A provider must be provided if buildings_filename is given.")
         else:
-            provider = Providers.OVERTURE.name
+            provider = 'OVERTURE'
     if type(provider) is not str:
         raise TypeError("provider must be a string")
-    if provider not in Providers._member_names_:
-        raise ValueError(f"Invalid provider: {provider}. Valid providers are: {Providers._member_names_}.")
+    if provider not in _PROVIDERS:
+        raise ValueError(f"Invalid provider: {provider}. Valid providers are: {_PROVIDERS}.")
     
     
     if feature_filters is not None:
@@ -224,16 +151,6 @@ def validate_args(
                     raise TypeError("Filter values must be a list, string, or integer.")
                 if not isinstance(f_value, list):
                     f_value = [f_value]
-                if provider == Providers.OVERTURE:
-                    if f_key == 'subtype':
-                        if any(subtype not in OvertureSubtypes._member_names_ for subtype in f_value):
-                            raise ValueError(f"Invalid subtype(s) in feature_filters for OVERTURE: {', '.join(f_value)}. Valid subtypes are: {OvertureSubtypes._member_names_}.")
-                    elif f_key == 'class':
-                        if any(cl not in OvertureClass._member_names_ for cl in f_value):
-                            raise ValueError(f"Invalid class(es) in feature_filters for OVERTURE: {', '.join(f_value)}. Valid classes are: {OvertureClass._member_names_}.")
-                    else:
-                        raise ValueError(f"Invalid filter key '{f_key}' for provider '{provider}'. Valid keys are: 'subtype', 'class'.")
-                # TODO: Implement other providers
                 filters[f_key] = f_value
             feature_filters[idxf] = filters                            
     else:
@@ -270,8 +187,9 @@ def retrieve_buildings(
     else:
         print(f"## Retrieving buildings data from provider: {provider} ...")
             
-        if provider == Providers.OVERTURE:
-            buildings_filename = utils.temp_filename(ext='shp', prefix='overture_buildings_')
+        buildings_filename = utils.temp_filename(ext='shp', prefix=f'{provider}_buildings')
+        
+        if provider == 'OVERTURE':
             _ = eedem_download(
                 dataset = 'OVERTURE/BUILDINGS',
                 bbox = utils.shapely_bbox_2_eedem_bbox(box(*bbox)),
@@ -279,11 +197,53 @@ def retrieve_buildings(
                 out = buildings_filename,
                 dmg = True
             )
+            provider_buildings = gpd.read_file(buildings_filename)
+            
+        elif provider.startswith('REGIONE-EMILIA-ROMAGNA'):
+            # DOC: Retrieve from all subservices of the requested one.
+            service_id = int(provider.split('-')[-1])
+            service_ids = [service_id]
+            while any([RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].subLayerIds is not None for service_id in service_ids]):
+                for service_id in service_ids:
+                    sub_layers = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].subLayerIds
+                    if sub_layers is not None:
+                        service_ids.remove(service_id)
+                        service_ids.extend(sub_layers)
+                        
+            def rest_service_retrieve(service_id):
+                url = f"https://servizigis.regione.emilia-romagna.it/geoags/rest/services/portale/saferplaces/MapServer/{service_id}/query"
+                params = {
+                    "geometry": ','.join([str(b) for b in bbox]),
+                    "geometryType": "esriGeometryEnvelope",
+                    "inSR": "4326",
+                    "outSR": "7791",
+                    "spatialRel": "esriSpatialRelIntersects",
+                    "where": "1=1",
+                    "outFields": "*",
+                    "f": "json",
+                    "returnGeometry": "true"
+                }
+                headers = {
+                    "User-Agent": "QGIS",
+                    "Referer": "http://localhost"
+                }
+                response = requests.get(url, params=params, headers=headers)
+                data = response.json()
                 
-            # TODO: Implement other providers
-             
-        provider_buildings = gpd.read_file(buildings_filename)
-        print(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(gpd.read_file(buildings_filename))} buildings)")        
+                features =[f['attributes'] for f in data['features']]
+                geometries = [Point(f['geometry']['x'], f['geometry']['y']) for f in data['features']]
+                
+                buffer_meters = 20
+
+                rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
+                rest_gdf['geometry'] = rest_gdf.buffer(buffer_meters)
+                rest_gdf = rest_gdf.to_crs(epsg=4326)
+                return rest_gdf
+            
+            provider_buildings = pd.concat([rest_service_retrieve(service_id) for service_id in service_ids], ignore_index=True)
+            provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
+        
+        print(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(provider_buildings)} buildings)")        
         
     return provider_buildings
 
@@ -352,6 +312,8 @@ def filter_by_feature(
             or_gdf = gdf.copy()
             
             for f_idx, (f_key, f_value) in enumerate(filters.items()):
+                if f_key not in gdf.columns:
+                    raise ValueError(f"Filter key '{f_key}' not found a valid feature. Avaliable features for this request are: {or_gdf.columns.tolist()}")
                 and_gdf = or_gdf.copy() if f_idx == 0 else and_gdf
                 and_gdf = and_gdf[and_gdf[f_key].isin(f_value)]
             filtered_gdfs.append(and_gdf)
@@ -481,17 +443,17 @@ def compute_flood(
 @click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy).')
 @click.option('--out', type=click.Path(), default=None, help='Output path for the results.')
 @click.option('--t_srs', type=str, default=None, help='Target spatial reference system (EPSG code).')
-@click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, REGIONE_EMILIA_ROMAGNA).')
+@click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, REGIONE-EMILIA-ROMAGNA-*).')
 @click.option('--filters', type=str, default=None, help='Filters for providers-features in JSON format.')
 def main(wd, buildings, bbox, out, t_srs, provider, filters):
     """
     Main function to run the flooded buildings analysis from command line.
     
-    Example:
+    Examples:
+    1. safer-buildings --wd tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}]"
+    2. safer-buildings --wd tests\rimini-wd.tif --provider REGIONE-EMILIA-ROMAGNA-30 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]"
     
-    safer-buildings --wd tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}]"
-    
-    in this example, the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
+    In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """
     
     print("# Starting flooded buildings analysis ...")
