@@ -7,7 +7,7 @@ import numpy as np
 from osgeo import gdal, osr, ogr
 
 from shapely.wkt import loads
-from shapely.geometry import box
+from shapely.geometry import box, Polygon
 import geopandas as gpd
 
 _base_temp_dir = tempfile.gettempdir()
@@ -83,7 +83,12 @@ def shapely_bbox_2_eedem_bbox(shapely_bbox):
     bounds = shapely_bbox.bounds
     return [bounds[1], bounds[3], bounds[0], bounds[2]]
 
-
+    
+def get_geodataframe_crs(geo_df):
+    epsg_code = geo_df.crs.to_epsg()
+    if epsg_code is None:
+        raise ValueError("GeoDataFrame does not have a defined CRS.")
+    return f"EPSG:{epsg_code}"
 
 def ensure_geodataframe_crs(geo_df, epsg_string):
     """
@@ -98,7 +103,7 @@ def ensure_geodataframe_crs(geo_df, epsg_string):
         _ = srs.ImportFromEPSG(epsg_code)
         target_crs_wkt = srs.ExportToWkt()
         return geo_df.to_crs(crs=target_crs_wkt)
-
+    
 
 
 def get_raster_crs(raster_filename):
@@ -136,7 +141,7 @@ def get_raster_bounds(raster_filename):
     return minx, miny, maxx, maxy
 
 
-def polygonize_raster_valid_data(raster_filename, band=1, mask_builder=None):
+def polygonize_raster_valid_data(raster_filename, band=1, mask_builder=None, bbox=None):
     dataset = gdal.Open(raster_filename)
     band = dataset.GetRasterBand(1)
     nodata_value = band.GetNoDataValue()
@@ -170,4 +175,53 @@ def polygonize_raster_valid_data(raster_filename, band=1, mask_builder=None):
     # Unisci i poligoni in una singola geometria
     valid_area = gpd.GeoSeries(valid_data_polygons).union_all()
     gdf = gpd.GeoDataFrame({'geometry':[valid_area]}, crs=get_raster_crs(raster_filename))
+    
+    if bbox is not None:
+        bbox = ensure_geodataframe_crs(bbox, get_raster_crs(raster_filename))
+        gdf = gpd.overlay(gdf, bbox, how='intersection')
+    
     return gdf
+
+
+def raster_sample_area(raster_filename, area):
+    raster_ds = gdal.Open(raster_filename)
+    raster_proj = raster_ds.GetProjection()
+    
+    gt = raster_ds.GetGeoTransform()
+    cols = raster_ds.RasterXSize
+    rows = raster_ds.RasterYSize
+
+    # Create in-memory raster to rasterize the polygon
+    mem_driver = gdal.GetDriverByName('MEM')
+    mask_ds = mem_driver.Create('', cols, rows, 1, gdal.GDT_Byte)
+    mask_ds.SetGeoTransform(gt)
+    mask_ds.SetProjection(raster_proj)
+
+    # Convert GeoPandas geometry to OGR geometry
+    ogr_polygon = ogr.CreateGeometryFromWkt(area.wkt)
+
+    # Create layer in memory and rasterize
+    mem_layer = ogr.GetDriverByName("Memory").CreateDataSource("")
+    layer = mem_layer.CreateLayer("poly", None, ogr.wkbPolygon)
+    feature = ogr.Feature(layer.GetLayerDefn())
+    feature.SetGeometry(ogr_polygon)
+    layer.CreateFeature(feature)
+
+    # Rasterize
+    gdal.RasterizeLayer(mask_ds, [1], layer, burn_values=[1])
+    mask_band = mask_ds.GetRasterBand(1)
+    mask_array = mask_band.ReadAsArray()
+
+    # Read raster band (e.g., band 1)
+    raster_band = raster_ds.GetRasterBand(1)
+    raster_array = raster_band.ReadAsArray()
+
+    # Apply the mask
+    masked_values = raster_array[mask_array == 1]
+
+    # Remove no-data values if necessary
+    nodata = raster_band.GetNoDataValue()
+    if nodata is not None:
+        masked_values = masked_values[masked_values != nodata]
+        
+    return masked_values

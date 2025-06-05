@@ -1,39 +1,35 @@
 import os
 import sys
-import datetime
 import json
 import click
 import time
-from enum import Enum
+import logging
 import requests
+import datetime
 
 import numpy as np
 import pandas as pd
 
 from osgeo import gdal, ogr, osr
 from shapely.wkt import loads
-from shapely.geometry import box, Point, Polygon
+from shapely.geometry import box, Point, Polygon, MultiPolygon, LineString, MultiLineString
 import geopandas as gpd
 
 from eedem import downloadDEM as eedem_download
-
-from collections.abc import MutableMapping
 
 from . import utils
 
 
 
-import logging
 logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", stream=sys.stderr)
 logger = logging.getLogger(__name__)    
 logger.setLevel(logging.INFO)
 
 
-# TODO: handle different crs (wd, bbox, overture, rest ecc...)
-# TODO: buffer on proj crs (geo crs goes error !!)
-# TODO: --list-providers arg shows detailed description of providers
-# TODO: --wd-stats -> min,avg,max waterdepth around flooded buildings
-# TODO: --summary -> add metadata with aggregate stats ( n buildings, n flooded buildings, min,avg,max wd for each category (provider dependend) of buildings)
+
+# IDEA: --list-providers arg shows detailed description of providers
+# IDEA: --summary -> add metadata with aggregate stats ( n buildings, n flooded buildings, min,avg,max wd for each category (provider dependend) of buildings)
+
 
 
 # DOC: define costants
@@ -72,11 +68,13 @@ _PROVIDERS = (
 def validate_args(
     waterdepth_filename: str,
     buildings_filename: str | None = None,
+    wd_thresh: float = 0.5,
     bbox: tuple[float, float, float, float] | None = None,
     out: str | None = None,
     t_srs: str | None = None,
     provider: list[str] | None = None,
-    feature_filters: dict[str, dict] | None = None
+    feature_filters: dict[str, dict] | None = None,
+    compute_stats: bool = False
 ):
     
     """
@@ -96,13 +94,21 @@ def validate_args(
         if os.path.isfile(buildings_filename) is False:
             raise FileNotFoundError(f"Buildings file not found: {buildings_filename}")
         
+    if wd_thresh is None:
+        wd_thresh = 0.5
+    if type(wd_thresh) not in (int, float):
+        raise TypeError("wd_thresh must be a float or int.")
+    if wd_thresh < 0:
+        raise ValueError("wd_thresh must be a non-negative float or int.")
+        
     if bbox is not None:
         if len(bbox) != 4:
             raise ValueError("bbox must be a tuple of four floats (minx, miny, maxx, maxy).")
         if not all(isinstance(coord, (int, float)) for coord in bbox):
             raise TypeError("All coordinates in bbox must be int or float.")
+        bbox = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs="EPSG:4326")
     else:
-        bbox = utils.get_raster_bounds(waterdepth_filename)
+        bbox = gpd.GeoDataFrame({'geometry': [box(*utils.get_raster_bounds(waterdepth_filename))]}, crs=utils.get_raster_crs(waterdepth_filename))
     
     if out is not None:
         if type(out) is not str:
@@ -156,22 +162,29 @@ def validate_args(
     else:
         feature_filters = []
         
+    if compute_stats is None:
+        compute_stats = False
+    if type(compute_stats) is not bool:
+        raise TypeError("compute_stats must be a boolean value.")
+        
     print("## Input arguments validated successfully.")
     print(f"### Water depth file: {waterdepth_filename}")
     print(f"### Buildings file: {buildings_filename}")
-    print(f"### Bounding box: {bbox}")
+    print(f"### Water depth threshold: {wd_thresh}")
+    print(f"### Bounding box (total bounds): {bbox.total_bounds}")
     print(f"### Output file: {out}")
     print(f"### Target SRS: {t_srs}")
     print(f"### Providers: {provider}")
     print(f"### Feature filters: {feature_filters}")
+    print(f"### Compute stats: {compute_stats}")
         
-    return waterdepth_filename, buildings_filename, bbox, out, t_srs, provider, feature_filters
+    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, compute_stats
 
 
 def retrieve_buildings(
     buildings_filename: str | None, 
-    bbox: tuple[float, float, float, float] | None,
-    provider: str | None
+    bbox: tuple[float, float, float, float],
+    provider: str
 ) -> gpd.GeoDataFrame:
     
     """
@@ -182,6 +195,8 @@ def retrieve_buildings(
     
     if buildings_filename is not None:
         provider_buildings = gpd.read_file(buildings_filename)
+        bbox = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs="EPSG:4326").to_crs(utils.get_geodataframe_crs(provider_buildings))
+        provider_buildings = gpd.overlay(provider_buildings, bbox, how='intersection')
         print(f"## Using provided buildings data from {buildings_filename}. Found {len(provider_buildings)} buildings.")
     
     else:
@@ -190,9 +205,11 @@ def retrieve_buildings(
         buildings_filename = utils.temp_filename(ext='shp', prefix=f'{provider}_buildings')
         
         if provider == 'OVERTURE':
+            bbox4326 = bbox.to_crs(epsg=4326).geometry.iloc[0]
+            print(utils.shapely_bbox_2_eedem_bbox(bbox4326),)
             _ = eedem_download(
                 dataset = 'OVERTURE/BUILDINGS',
-                bbox = utils.shapely_bbox_2_eedem_bbox(box(*bbox)),
+                bbox = utils.shapely_bbox_2_eedem_bbox(bbox4326),
                 band=None,
                 out = buildings_filename,
                 dmg = True
@@ -212,8 +229,9 @@ def retrieve_buildings(
                         
             def rest_service_retrieve(service_id):
                 url = f"https://servizigis.regione.emilia-romagna.it/geoags/rest/services/portale/saferplaces/MapServer/{service_id}/query"
+                bbox4326 = bbox.to_crs("EPSG:4326").geometry.total_bounds
                 params = {
-                    "geometry": ','.join([str(b) for b in bbox]),
+                    "geometry": ','.join([str(b) for b in bbox4326]),
                     "geometryType": "esriGeometryEnvelope",
                     "inSR": "4326",
                     "outSR": "7791",
@@ -231,17 +249,50 @@ def retrieve_buildings(
                 data = response.json()
                 
                 features =[f['attributes'] for f in data['features']]
-                geometries = [Point(f['geometry']['x'], f['geometry']['y']) for f in data['features']]
                 
-                buffer_meters = 20
+                do_buffer = False
+                geometry_type = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].geometryType
+                if geometry_type == 'esriGeometryPoint':
+                    geometries = [
+                        Point(f['geometry']['x'], f['geometry']['y']) 
+                        for f in data['features']
+                    ]
+                    do_buffer = True
+                elif geometry_type == 'esriGeometryPolygon':
+                    geometries = [
+                        MultiPolygon(
+                            [Polygon([point for point in ring ])
+                            for ring in f['geometry']['rings']]
+                        ) 
+                        for f in data['features']
+                    ]
+                elif geometry_type == 'esriGeometryPolyline':
+                    geometries = [
+                        MultiLineString(
+                            [LineString([point for point in path ])
+                            for path in f['geometry']['paths']]
+                        ) 
+                        for f in data['features']
+                    ]
+                else:
+                    raise ValueError(f"Unsupported geometry type for service {service_id}: {RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].geometryType}")
 
+                service_name = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].name
                 rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
-                rest_gdf['geometry'] = rest_gdf.buffer(buffer_meters)
-                rest_gdf = rest_gdf.to_crs(epsg=4326)
+                rest_gdf['feature_class'] = service_name
+                
+                if do_buffer:
+                    buffer_meters = 20
+                    rest_gdf['geometry'] = rest_gdf.buffer(buffer_meters)
+                    
                 return rest_gdf
-            
+        
             provider_buildings = pd.concat([rest_service_retrieve(service_id) for service_id in service_ids], ignore_index=True)
             provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
+        
+        else:
+            raise ValueError(f"Provider '{provider}' is not supported. Available providers are: {_PROVIDERS}.")
+
         
         print(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(provider_buildings)} buildings)")        
         
@@ -268,7 +319,6 @@ def get_waterdepth_mask(
 
 
 def get_flooded_buildings(
-    waterdepth_filename: str,
     waterdepth_mask: gpd.GeoDataFrame | None,
     buildings: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
@@ -277,15 +327,7 @@ def get_flooded_buildings(
     Get flooded buildings by intersecting water depth polygons with buildings.
     """
     
-    buildings = utils.ensure_geodataframe_crs(buildings, utils.get_raster_crs(waterdepth_filename))
-    
-    # TODO: crop to bbox if defined (assume user privided bbox is 4326)
-    
-    if waterdepth_mask is None:
-        waterdepth_mask = get_waterdepth_mask(
-            waterdepth_filename=waterdepth_filename,
-            mask_builder=lambda wd: wd > 0.5  # Significant water depth threshold
-        )
+    buildings = utils.ensure_geodataframe_crs(buildings, utils.get_geodataframe_crs(waterdepth_mask))
     
     # Intersect with water depth polygons
     buildings['__tmp_identifier__'] = buildings.index.to_list()
@@ -326,17 +368,47 @@ def filter_by_feature(
         return gdf
     
 
+def compute_wd_stats(
+    waterdepth_filename: str,
+    waterdepth_mask: gpd.GeoDataFrame,
+    buildings: gpd.GeoDataFrame
+):
+    """
+    Compute statistics on water depth around flooded buildings.
+    """
+    
+    def building_wd_stats(building):
+        flood_area = gpd.overlay(waterdepth_mask, gpd.GeoDataFrame({'geometry': [building.geometry]}), how='intersection') if building.is_flooded else None
+        if flood_area is None or flood_area.empty:
+            return None
+        else:
+            flood_area_values = utils.raster_sample_area(waterdepth_filename, flood_area.geometry.iloc[0])
+            flood_area_stats = dict(pd.Series(flood_area_values).describe())
+            return flood_area_stats
+               
+    flood_buildings_stats = [building_wd_stats(building) for _, building in buildings.iterrows()]
+    buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
+    
+    return buildings
+
+
 
 # DOC: Main function to compute flooded buildings
 
 def compute_flood(
     waterdepth_filename: str,
     buildings_filename: str | None = None,
+    wd_thresh: float = 0.5,
     bbox: tuple[float, float, float, float] | None = None,
     out: str | None = None,
     t_srs: str | None = None,
     provider: list[str] | None = None,
     feature_filters: dict[str, list[dict[str, list|str|int]]] | None = None,
+    compute_stats: bool = False
 ) -> str:
     
     """
@@ -358,19 +430,21 @@ def compute_flood(
     
     # DOC: 1 — Validate args.
     print("# Validating input arguments ...")
-    waterdepth_filename, buildings_filename, bbox, out, t_srs, provider, feature_filters = validate_args(
+    waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, compute_stats = validate_args(
         waterdepth_filename=waterdepth_filename,
         buildings_filename=buildings_filename,
+        wd_thresh=wd_thresh,
         bbox=bbox,
         out=out,
         t_srs=t_srs,
         provider=provider,
-        feature_filters=feature_filters
+        feature_filters=feature_filters,
+        compute_stats=compute_stats
     )
     
     
-    # DOC: 2 — Retrieve buildings
-    print(f'# Retrieving buildings data from provider {provider} ...')
+    # DOC: 2 — Gather buildings
+    print(f'# Gather buildings data ...')
     provider_buildings = retrieve_buildings(
         buildings_filename=buildings_filename,
         bbox=bbox,
@@ -383,16 +457,14 @@ def compute_flood(
     waterdepth_polygonized = utils.polygonize_raster_valid_data(
         raster_filename=waterdepth_filename,
         band=1,
-        mask_builder=lambda wd: wd > 0.5    # Significant water depth threshold
+        mask_builder=lambda wd: wd > wd_thresh,    # Significant water depth threshold
+        bbox=bbox
     )
-    
-    # TODO: crop to bbox if defined (assume user provided bbox is 4326)
     
     
     # DOC: 4 — Intersect buildings with water depth
     print('# Intersecting buildings with water depth ...')
-    provider_flooding = get_flooded_buildings(
-        waterdepth_filename = waterdepth_filename,
+    flooded_buildings = get_flooded_buildings(
         waterdepth_mask = waterdepth_polygonized,
         buildings = provider_buildings
     )
@@ -400,38 +472,50 @@ def compute_flood(
     
     # DOC: 5 — Filter features
     print('# Filtering features ...')
-    filtered_provider_gdf = filter_by_feature(
-        gdf = provider_flooding,
+    filtered_flooded_buildings = filter_by_feature(
+        gdf = flooded_buildings,
         feature_filters = feature_filters
     )
-    print(f"## Filtered {len(filtered_provider_gdf)} buildings out from {len(provider_flooding)}.")
+    print(f"## Filtered {len(filtered_flooded_buildings)} buildings out from {len(flooded_buildings)}.")
+    
+    
+    # DOC: 6 — Compute water depth stats over flooded buildings
+    if compute_stats:
+        print('# Computing water depth stats over flooded buildings ...')
+        filtered_flooded_buildings = compute_wd_stats(
+            waterdepth_filename=waterdepth_filename,
+            waterdepth_mask=waterdepth_polygonized,
+            buildings=filtered_flooded_buildings
+        )
+        print("## Water depth stats computed for flooded buildings.")
         
     
-    # DOC: 6 — Return results
+    # DOC: 7 — Return results
     print('# Preparing geojson output results ...')
-    provider_feature_collection = filtered_provider_gdf.to_geo_dict()
-    provider_feature_collection['metadata'] = {
+    filtered_flooded_buildings = filtered_flooded_buildings.to_crs(t_srs)
+    feature_collection = filtered_flooded_buildings.to_geo_dict()
+    feature_collection['metadata'] = {
         'provider': provider,
-        'buildings_count': len(filtered_provider_gdf),
-        'flooded_buildings_count': len(filtered_provider_gdf['is_flooded'])
+        'buildings_count': len(filtered_flooded_buildings),
+        'flooded_buildings_count': len(filtered_flooded_buildings['is_flooded'])
     }
-    provider_feature_collection['crs'] = {
+    feature_collection['crs'] = {
         "type": "name",
         "properties": {
             "name": f"urn:ogc:def:crs:{t_srs.replace(':', '::')}"  # REF: https://gist.github.com/sgillies/1233327 lines 256:271
         }
     }
-    print(f"## Buildings feature collection prepared with {len(provider_feature_collection['features'])} features.")
+    print(f"## Buildings feature collection prepared with {len(feature_collection['features'])} features.")
         
     
-    # DOC: 7 — Save results to file
+    # DOC: 8 — Save results to file
     print(f'# Saving results to {out} ...')
     out_provider_fname = f'{out}__{provider}.geojson'
     with open(out_provider_fname, 'w') as f:
-        json.dump(provider_feature_collection, f, indent=2)
+        json.dump(feature_collection, f, indent=2)
     print(f"## Results saved to {out_provider_fname}")
     
-    return provider_feature_collection
+    return feature_collection
 
 
 
@@ -440,12 +524,14 @@ def compute_flood(
 @click.command()
 @click.option('--wd', type=click.Path(exists=True), required=True, help='Path to the water depth raster file.')
 @click.option('--buildings', type=click.Path(exists=True), default=None, help='Path to the buildings vector file.')
+@click.option('--wd-thresh', type=float, default=0.5, help='Water depth threshold for significant flooding (default: 0.5).')
 @click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy).')
 @click.option('--out', type=click.Path(), default=None, help='Output path for the results.')
 @click.option('--t_srs', type=str, default=None, help='Target spatial reference system (EPSG code).')
 @click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, REGIONE-EMILIA-ROMAGNA-*).')
 @click.option('--filters', type=str, default=None, help='Filters for providers-features in JSON format.')
-def main(wd, buildings, bbox, out, t_srs, provider, filters):
+@click.option('--stats', is_flag=True, required=False, default=False, help="Debug mode.")
+def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, stats):
     """
     Main function to run the flooded buildings analysis from command line.
     
@@ -465,21 +551,25 @@ def main(wd, buildings, bbox, out, t_srs, provider, filters):
     print("# CLI parameters:")
     print(f"## Water depth file: {wd}")
     print(f"## Buildings file: {buildings}")
+    print(f"## Water depth threshold: {wd_thresh}")
     print(f"## Bounding box: {bbox}")
     print(f"## Output file: {out}")
     print(f"## Target SRS: {t_srs}")
     print(f"## Provider: {provider}")
     print(f"## Feature filters: {filters}")
+    print(f"## Stats: {stats}")
     
     result = compute_flood(
         waterdepth_filename = wd,
         buildings_filename = buildings,
+        wd_thresh = wd_thresh,
         bbox = tuple(bbox) if bbox else None,
         out = out,
         t_srs = t_srs,
         provider = provider,
-        feature_filters = filters
+        feature_filters = filters,
+        compute_stats = stats
     )
     
     time_end = time.time()
-    print(f"# Flooded buildings analysis completed in {time_end - time_start:.2f} seconds.")
+    print(f"# Flooded buildings analysis completed in {time_end - time_start:.2f} seconds. Returned {len(result['features'])} features.")
