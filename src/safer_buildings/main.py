@@ -34,6 +34,7 @@ logger.setLevel(logging.INFO)
 
 # DOC: define costants
 
+_RING_BUFFER_M = 5  # DOC: Default buffer radius in meters for building rings around flooded buildings.
 
 def _list_rest_layers():
     service_url = "https://servizigis.regione.emilia-romagna.it/geoags/rest/services/portale/saferplaces/MapServer"
@@ -356,9 +357,14 @@ def get_flooded_buildings(
     
     buildings = utils.ensure_geodataframe_crs(buildings, utils.get_geodataframe_crs(waterdepth_mask))
     
+    radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
+    
     # Intersect with water depth polygons
     buildings['__tmp_identifier__'] = buildings.index.to_list()
-    flooded_buildings = gpd.overlay(buildings, waterdepth_mask, how='intersection')
+    buildings_rings = utils.get_polygon_ring(buildings, radius_buffer)
+    
+    flooded_buildings = gpd.overlay(buildings_rings, waterdepth_mask, how='intersection')
+    
     buildings['is_flooded'] = buildings['__tmp_identifier__'].apply(lambda tmp_id: tmp_id in flooded_buildings['__tmp_identifier__'].to_list())
     buildings.drop(columns=['__tmp_identifier__'], inplace=True)
     
@@ -405,7 +411,9 @@ def compute_wd_stats(
     """
     
     def building_wd_stats(building):
-        flood_area = gpd.overlay(waterdepth_mask, gpd.GeoDataFrame({'geometry': [building.geometry]}), how='intersection') if building.is_flooded else None
+        radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
+        building_ring = utils.get_polygon_ring(gpd.GeoDataFrame({'geometry': [building.geometry]}, crs=buildings.crs), ring_buffer=radius_buffer)
+        flood_area = gpd.overlay(waterdepth_mask, building_ring, how='intersection') if building.is_flooded else None
         if flood_area is None or flood_area.empty:
             return None
         else:
@@ -417,6 +425,7 @@ def compute_wd_stats(
     buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_median'] = [stats['50%'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
     
@@ -441,6 +450,7 @@ def compute_wd_summary(
             'flood_wd_min': float(np.nanmin(gdf['flood_wd_min'].values)),
             'flood_wd_25perc': float(np.nanpercentile(gdf['flood_wd_25perc'].values, 25)),
             'flood_wd_mean': float(np.nanmean(gdf['flood_wd_mean'].values)),
+            'flood_wd_median': float(np.nanmedian(gdf['flood_wd_median'].values)),
             'flood_wd_75perc': float(np.nanpercentile(gdf['flood_wd_75perc'].values, 75)),
             'flood_wd_max': float(np.nanmax(gdf['flood_wd_max'].values))
         }
@@ -641,8 +651,8 @@ def main(
     Main function to run the flooded buildings analysis from command line.
     
     Examples:
-    1. safer-buildings --wd tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}] --only_flood --stats"
-    2. safer-buildings --wd tests\rimini-wd.tif --provider RER-REST/28/31 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]" --summary
+    1. safer-buildings --wd tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}]" --only_flood --stats
+    2. safer-buildings --wd tests\rimini-wd.tif --provider RER-REST/28/31/40 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]" --summary
     
     In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """

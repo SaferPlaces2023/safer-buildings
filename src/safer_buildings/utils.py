@@ -83,6 +83,16 @@ def shapely_bbox_2_eedem_bbox(shapely_bbox):
     bounds = shapely_bbox.bounds
     return [bounds[1], bounds[3], bounds[0], bounds[2]]
 
+
+def crs_is_projected(epsg_string):
+    """
+    Check if the EPSG code is projected.
+    """
+    epsg_code = int(epsg_string.split(":")[-1])
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(epsg_code)
+    return srs.IsProjected()
+
     
 def get_geodataframe_crs(geo_df):
     epsg_code = geo_df.crs.to_epsg()
@@ -103,6 +113,16 @@ def ensure_geodataframe_crs(geo_df, epsg_string):
         _ = srs.ImportFromEPSG(epsg_code)
         target_crs_wkt = srs.ExportToWkt()
         return geo_df.to_crs(crs=target_crs_wkt)
+    
+
+def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
+    """
+    Get the exterior ring of the first polygon in the GeoDataFrame.
+    """
+    gdf_rings = gdf.copy()
+    gdf_rings['geometry'] = gdf_rings.buffer(ring_buffer).geometry
+    gdf_rings = gpd.overlay(gdf_rings, gdf, how='difference')
+    return gdf_rings
     
 
 
