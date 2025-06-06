@@ -50,7 +50,7 @@ def _list_rest_layers():
     response = requests.get(service_url, params=params, headers=headers)
     data = response.json()
     df_layers = pd.DataFrame(data['layers']).sort_values('id').reset_index(drop=True)
-    df_layers['provider_name'] = df_layers['id'].apply(lambda service_id: f'REGIONE-EMILIA-ROMAGNA-{service_id}')
+    df_layers['provider_name'] = df_layers['id'].apply(lambda service_id: f'RER-REST/{service_id}')
     return df_layers
 
 RegioneEmiliaRomagnaLayers = _list_rest_layers()
@@ -142,7 +142,15 @@ def validate_args(
             provider = 'OVERTURE'
     if type(provider) is not str:
         raise TypeError("provider must be a string")
-    if provider not in _PROVIDERS:
+    if provider.startswith('RER-REST'):
+        if len(provider.split('/')) < 2:
+            raise ValueError("RER-REST provider must be in the format 'RER-REST/<service_id>'. At least one service_id must be provided. MULTIPLE service_ids can be specified by '/' separated list, e.g. 'RER-REST/30/31/32'.")
+        service_ids = provider.split('/')[1:]
+        for service_id in service_ids:
+            provider_service = f'RER-REST/{service_id}'
+            if provider_service not in _PROVIDERS:
+                raise ValueError(f"Invalid provider: {provider_service}. Valid providers are: {_PROVIDERS}.")
+    elif provider not in _PROVIDERS:
         raise ValueError(f"Invalid provider: {provider}. Valid providers are: {_PROVIDERS}.")
     
     
@@ -218,7 +226,7 @@ def retrieve_buildings(
     else:
         print(f"## Retrieving buildings data from provider: {provider} ...")
             
-        buildings_filename = utils.temp_filename(ext='shp', prefix=f'{provider}_buildings')
+        buildings_filename = utils.temp_filename(ext='shp', prefix=f"{provider.replace('/','-')}_buildings")
         
         if provider == 'OVERTURE':
             bbox4326 = bbox.to_crs(epsg=4326).geometry.iloc[0]
@@ -232,16 +240,16 @@ def retrieve_buildings(
             )
             provider_buildings = gpd.read_file(buildings_filename)
             
-        elif provider.startswith('REGIONE-EMILIA-ROMAGNA'):
+        elif provider.startswith('RER-REST'):
             # DOC: Retrieve from all subservices of the requested one.
-            service_id = int(provider.split('-')[-1])
-            service_ids = [service_id]
+            service_ids = list(map(int, provider.split('/')[1:]))
             while any([RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].subLayerIds is not None for service_id in service_ids]):
                 for service_id in service_ids:
                     sub_layers = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].subLayerIds
                     if sub_layers is not None:
                         service_ids.remove(service_id)
                         service_ids.extend(sub_layers)
+                        service_ids = list(set(service_ids))
                         
             def rest_service_retrieve(service_id):
                 url = f"https://servizigis.regione.emilia-romagna.it/geoags/rest/services/portale/saferplaces/MapServer/{service_id}/query"
@@ -302,6 +310,7 @@ def retrieve_buildings(
                     buffer_meters = 20
                     rest_gdf = rest_gdf.to_crs("EPSG:7791")
                     rest_gdf['geometry'] = rest_gdf.buffer(buffer_meters)
+                    rest_gdf = rest_gdf.to_crs("EPSG:4326")
                     
                 return rest_gdf
         
@@ -426,7 +435,7 @@ def compute_wd_summary(
     summary = dict()
     
     def base_summary(gdf):
-        return {
+        _base_summary = {
             'total_buildings': len(gdf),
             'flooded_buildings': int(gdf['is_flooded'].sum()),
             'flood_wd_min': float(np.nanmin(gdf['flood_wd_min'].values)),
@@ -435,13 +444,15 @@ def compute_wd_summary(
             'flood_wd_75perc': float(np.nanpercentile(gdf['flood_wd_75perc'].values, 75)),
             'flood_wd_max': float(np.nanmax(gdf['flood_wd_max'].values))
         }
+        _base_summary = {k: v if not np.isnan(v) else None for k, v in _base_summary.items()}
+        return _base_summary
     
     summary['overall'] = base_summary(buildings)
     
     class_column = None
     if provider == 'OVERTURE':
         class_column = 'subtype'
-    elif provider.startswith('REGIONE-EMILIA-ROMAGNA'):
+    elif provider.startswith('RER-REST'):
         class_column = 'service_class'
     else:
         raise ValueError(f"Provider '{provider}' is not supported for summary computation. Available providers are: {_PROVIDERS}.")     # DOC: Should never happen, but just in case.
@@ -590,7 +601,7 @@ def compute_flood(
     
     # DOC: 9 — Save results to file
     print(f'# Saving results to {out} ...')
-    out_provider_fname = f'{out}__{provider}.geojson'
+    out_provider_fname = f"{out}__{provider.replace('/','-')}.geojson"
     with open(out_provider_fname, 'w') as f:
         json.dump(feature_collection, f, indent=2)
     print(f"## Results saved to {out_provider_fname}")
@@ -608,7 +619,7 @@ def compute_flood(
 @click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy). If None, the total bounds of the water depth raster will be used.')
 @click.option('--out', type=click.Path(), default=None, help='Output path for the results.')
 @click.option('--t_srs', type=str, default=None, help='Target spatial reference system (EPSG code). If None, CRS of water depth raster will be used.')
-@click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, REGIONE-EMILIA-ROMAGNA-*).')
+@click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, RER-REST/*).')
 @click.option('--filters', type=str, default=None, help='Filters for providers-features in JSON format.')
 @click.option('--only_flood', is_flag=True, required=False, default=False, help="Only return flooded buildings (default: False).")
 @click.option('--stats', is_flag=True, required=False, default=False, help="Compute water depth statistics for flooded buildings.")
@@ -631,7 +642,7 @@ def main(
     
     Examples:
     1. safer-buildings --wd tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}] --only_flood --stats"
-    2. safer-buildings --wd tests\rimini-wd.tif --provider REGIONE-EMILIA-ROMAGNA-30 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]" --summary
+    2. safer-buildings --wd tests\rimini-wd.tif --provider RER-REST/28/31 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]" --summary
     
     In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """
