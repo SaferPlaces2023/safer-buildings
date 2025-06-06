@@ -75,8 +75,9 @@ def validate_args(
     provider: list[str] | None = None,
     feature_filters: dict[str, dict] | None = None,
     only_flood: bool = False,
-    compute_stats: bool = False
-):
+    compute_stats: bool = False,
+    compute_summary: bool = False
+) -> tuple[str, str | None, float, gpd.GeoDataFrame, str, str, str, list[dict[str, list]], bool, bool, bool]:
     
     """
     Validate the input arguments for the flooded buildings analysis.
@@ -172,6 +173,13 @@ def validate_args(
         compute_stats = False
     if type(compute_stats) is not bool:
         raise TypeError("compute_stats must be a boolean value.")
+    
+    if compute_summary is None:
+        compute_summary = False
+    if type(compute_summary) is not bool:
+        raise TypeError("compute_summary must be a boolean value.")
+    if compute_summary:
+        compute_stats = True  # If summary is requested, stats must be computed as well.
         
     print("## Input arguments validated successfully.")
     print(f"### Water depth file: {waterdepth_filename}")
@@ -184,8 +192,9 @@ def validate_args(
     print(f"### Feature filters: {feature_filters}")
     print(f"### Only flood: {only_flood}")
     print(f"### Compute stats: {compute_stats}")
+    print(f"### Compute summary: {compute_summary}")
         
-    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats
+    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary
 
 
 def retrieve_buildings(
@@ -352,7 +361,7 @@ def get_flooded_buildings(
 def filter_by_feature(
     gdf: gpd.GeoDataFrame,
     feature_filters: list[dict[str, list]]
-):
+) -> gpd.GeoDataFrame:
     """
     Filter a GeoDataFrame by a list of filters.
     """
@@ -381,7 +390,7 @@ def compute_wd_stats(
     waterdepth_filename: str,
     waterdepth_mask: gpd.GeoDataFrame,
     buildings: gpd.GeoDataFrame
-):
+) -> gpd.GeoDataFrame:
     """
     Compute statistics on water depth around flooded buildings.
     """
@@ -405,6 +414,45 @@ def compute_wd_stats(
     return buildings
 
 
+def compute_wd_summary(
+    buildings: gpd.GeoDataFrame,
+    provider: str
+) -> dict:
+    """
+    Compute summary statistics for flooded buildings.
+    This function will return a dictionary with aggregated statistics based on building type and class.
+    """
+    
+    summary = dict()
+    
+    def base_summary(gdf):
+        return {
+            'total_buildings': len(gdf),
+            'flooded_buildings': int(gdf['is_flooded'].sum()),
+            'flood_wd_min': float(np.nanmin(gdf['flood_wd_min'].values)),
+            'flood_wd_25perc': float(np.nanpercentile(gdf['flood_wd_25perc'].values, 25)),
+            'flood_wd_mean': float(np.nanmean(gdf['flood_wd_mean'].values)),
+            'flood_wd_75perc': float(np.nanpercentile(gdf['flood_wd_75perc'].values, 75)),
+            'flood_wd_max': float(np.nanmax(gdf['flood_wd_max'].values))
+        }
+    
+    summary['overall'] = base_summary(buildings)
+    
+    class_column = None
+    if provider == 'OVERTURE':
+        class_column = 'subtype'
+    elif provider.startswith('REGIONE-EMILIA-ROMAGNA'):
+        class_column = 'service_class'
+    else:
+        raise ValueError(f"Provider '{provider}' is not supported for summary computation. Available providers are: {_PROVIDERS}.")     # DOC: Should never happen, but just in case.
+    buildings[class_column] = buildings[class_column].fillna('other')
+    summary['classes'] = {
+        class_name: base_summary(class_gdf)
+        for class_name, class_gdf in buildings.groupby(class_column)
+    }
+    
+    return summary
+
 
 # DOC: Main function to compute flooded buildings
 
@@ -418,7 +466,8 @@ def compute_flood(
     provider: list[str] | None = None,
     feature_filters: dict[str, list[dict[str, list|str|int]]] | None = None,
     only_flood: bool = False,
-    compute_stats: bool = False
+    compute_stats: bool = False,
+    compute_summary: bool = False
 ) -> str:
     
     """
@@ -440,7 +489,7 @@ def compute_flood(
     
     # DOC: 1 — Validate args.
     print("# Validating input arguments ...")
-    waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats = validate_args(
+    validated_args = validate_args(
         waterdepth_filename=waterdepth_filename,
         buildings_filename=buildings_filename,
         wd_thresh=wd_thresh,
@@ -450,8 +499,10 @@ def compute_flood(
         provider=provider,
         feature_filters=feature_filters,
         only_flood=only_flood,
-        compute_stats=compute_stats
+        compute_stats=compute_stats,
+        compute_summary=compute_summary
     )
+    waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary = validated_args
     
     
     # DOC: 2 — Gather buildings
@@ -507,14 +558,26 @@ def compute_flood(
         print("## Water depth stats computed for flooded buildings.")
         
     
-    # DOC: 7 — Return results
+    # DOC: 7 — Compute summary if requested
+    if compute_summary:
+        print('# Computing summary statistics for flooded buildings ...')
+        summary_stats = compute_wd_summary(
+            buildings=filtered_flooded_buildings,
+            provider=provider
+        )
+        print("## Summary statistics computed for flooded buildings.") 
+    
+        
+    
+    # DOC: 8 — Return results
     print('# Preparing geojson output results ...')
     filtered_flooded_buildings = filtered_flooded_buildings.to_crs(t_srs)
     feature_collection = filtered_flooded_buildings.to_geo_dict()
     feature_collection['metadata'] = {
         'provider': provider,
         'buildings_count': len(filtered_flooded_buildings),
-        'flooded_buildings_count': len(filtered_flooded_buildings['is_flooded'])
+        'flooded_buildings_count': len(filtered_flooded_buildings['is_flooded']),
+        'summary': summary_stats if compute_summary else None
     }
     feature_collection['crs'] = {
         "type": "name",
@@ -525,7 +588,7 @@ def compute_flood(
     print(f"## Buildings feature collection prepared with {len(feature_collection['features'])} features.")
         
     
-    # DOC: 8 — Save results to file
+    # DOC: 9 — Save results to file
     print(f'# Saving results to {out} ...')
     out_provider_fname = f'{out}__{provider}.geojson'
     with open(out_provider_fname, 'w') as f:
@@ -541,21 +604,34 @@ def compute_flood(
 @click.command()
 @click.option('--wd', type=click.Path(exists=True), required=True, help='Path to the water depth raster file.')
 @click.option('--buildings', type=click.Path(exists=True), default=None, help='Path to the buildings vector file.')
-@click.option('--wd-thresh', type=float, default=0.5, help='Water depth threshold for significant flooding (default: 0.5).')
-@click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy).')
+@click.option('--wd_thresh', type=float, default=0.5, help='Water depth threshold for significant flooding (default: 0.5).')
+@click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy). If None, the total bounds of the water depth raster will be used.')
 @click.option('--out', type=click.Path(), default=None, help='Output path for the results.')
-@click.option('--t_srs', type=str, default=None, help='Target spatial reference system (EPSG code).')
+@click.option('--t_srs', type=str, default=None, help='Target spatial reference system (EPSG code). If None, CRS of water depth raster will be used.')
 @click.option('--provider', type=str, default=None, help='Building data provider (one of OVERTURE, REGIONE-EMILIA-ROMAGNA-*).')
 @click.option('--filters', type=str, default=None, help='Filters for providers-features in JSON format.')
 @click.option('--only_flood', is_flag=True, required=False, default=False, help="Only return flooded buildings (default: False).")
 @click.option('--stats', is_flag=True, required=False, default=False, help="Compute water depth statistics for flooded buildings.")
-def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, only_flood, stats):
+@click.option('--summary', is_flag=True, required=False, default=False, help="Returns an additional metadata field with aggregated statistic based on building type and class. If true, stats will be computed as well.")
+def main(
+    wd,
+    buildings,
+    wd_thresh,
+    bbox,
+    out,
+    t_srs,
+    provider,
+    filters,
+    only_flood,
+    stats,
+    summary
+):
     """
     Main function to run the flooded buildings analysis from command line.
     
     Examples:
     1. safer-buildings --wd tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}] --only_flood --stats"
-    2. safer-buildings --wd tests\rimini-wd.tif --provider REGIONE-EMILIA-ROMAGNA-30 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]"
+    2. safer-buildings --wd tests\rimini-wd.tif --provider REGIONE-EMILIA-ROMAGNA-30 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]" --summary
     
     In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """
@@ -577,6 +653,7 @@ def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, only_flo
     print(f"## Feature filters: {filters}")
     print(f"## Only flood: {only_flood}")
     print(f"## Stats: {stats}")
+    print(f"## Summary: {summary}")
     
     result = compute_flood(
         waterdepth_filename = wd,
@@ -588,7 +665,8 @@ def main(wd, buildings, wd_thresh, bbox, out, t_srs, provider, filters, only_flo
         provider = provider,
         feature_filters = filters,
         only_flood = only_flood,
-        compute_stats = stats
+        compute_stats = stats,
+        compute_summary = summary
     )
     
     time_end = time.time()
