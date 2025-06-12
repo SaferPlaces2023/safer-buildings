@@ -219,6 +219,16 @@ def retrieve_buildings(
     If not, it will download buildings data from the specified providers.
     """
     
+    def retrieve_overture():
+        columns = ["id", "geometry", "height", "subtype", "class", "is_underground"]
+        provider_buildings = leafmap.get_overture_data(
+            overture_type = "building", 
+            bbox = bbox.to_crs(epsg=4326).total_bounds.tolist(), 
+            columns = columns
+        )
+        return provider_buildings
+    
+    
     if buildings_filename is not None:
         provider_buildings = gpd.read_file(buildings_filename)
         bbox = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs="EPSG:4326").to_crs(utils.get_geodataframe_crs(provider_buildings))
@@ -231,12 +241,7 @@ def retrieve_buildings(
         buildings_filename = utils.temp_filename(ext='shp', prefix=f"{provider.replace('/','-')}_buildings")
         
         if provider == 'OVERTURE':
-            columns = ["id", "geometry", "height", "subtype", "class", "is_underground"]
-            provider_buildings = leafmap.get_overture_data(
-                overture_type = "building", 
-                bbox = bbox.to_crs(epsg=4326).total_bounds.tolist(), 
-                columns = columns
-            )
+            provider_buildings = retrieve_overture()
             
         elif provider.startswith('RER-REST'):
             # DOC: Retrieve from all subservices of the requested one.
@@ -272,14 +277,12 @@ def retrieve_buildings(
                 
                 features =[f['attributes'] for f in data['features']]
                 
-                do_buffer = False
                 geometry_type = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].geometryType
                 if geometry_type == 'esriGeometryPoint':
                     geometries = [
                         Point(f['geometry']['x'], f['geometry']['y']) 
                         for f in data['features']
                     ]
-                    do_buffer = True
                 elif geometry_type == 'esriGeometryPolygon':
                     geometries = [
                         MultiPolygon(
@@ -296,23 +299,34 @@ def retrieve_buildings(
                         ) 
                         for f in data['features']
                     ]
-                    do_buffer = True
                 else:
                     raise ValueError(f"Unsupported geometry type for service {service_id}: {RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].geometryType}")
 
                 rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
                 rest_gdf['service_id'] = service_id
                 rest_gdf['service_class'] = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].name.iloc[0]
-                
-                if do_buffer:
-                    buffer_meters = 20
-                    rest_gdf = rest_gdf.to_crs("EPSG:7791")
-                    rest_gdf['geometry'] = rest_gdf.buffer(buffer_meters)
-                    rest_gdf = rest_gdf.to_crs("EPSG:4326")
                     
                 return rest_gdf
-        
+            
+            def overture_intersection(gdf_re):
+                print(f"### Overture intersection for {len(gdf_re)} RER-REST Points.")
+                gdf_ot = retrieve_overture()
+                gdf_re['ot_id'] = gdf_re.geometry.apply(lambda geom: gdf_ot[gdf_ot.geometry.contains(geom)].id.values.tolist() if type(geom) is Point else None)
+                gdf_re['ot_id'] = gdf_re['ot_id'].apply(lambda ids: ids[0] if ids is not None and len(ids) > 0 else None)
+                gdf_re['geometry'] = gdf_re.apply(lambda row: gdf_ot[gdf_ot.id == row.ot_id].iloc[0].geometry if row.ot_id is not None else row.geometry, axis=1)
+                print(f'### Overture intersection: Taking overture building from {len(gdf_re[gdf_re.ot_id.notnull()])} original RER-REST Points.')
+                return gdf_re
+    
+            def buffer_points(gdf, buffer_meters = 20):
+                gdf = gdf.to_crs("EPSG:7791")
+                gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, LineString, MultiLineString] else g)
+                gdf = gdf.to_crs("EPSG:4326")
+                return gdf
+            
             provider_buildings = pd.concat([rest_service_retrieve(service_id) for service_id in service_ids], ignore_index=True)
+            provider_buildings = overture_intersection(provider_buildings)
+            provider_buildings = buffer_points(provider_buildings)
+            
             provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
         
         else:
