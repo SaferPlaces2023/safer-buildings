@@ -15,7 +15,8 @@ from shapely.wkt import loads
 from shapely.geometry import box, Point, Polygon, MultiPolygon, LineString, MultiLineString
 import geopandas as gpd
 
-from eedem import downloadDEM as eedem_download
+import leafmap
+# from eedem import downloadDEM as eedem_download
 
 from . import utils
 
@@ -230,16 +231,12 @@ def retrieve_buildings(
         buildings_filename = utils.temp_filename(ext='shp', prefix=f"{provider.replace('/','-')}_buildings")
         
         if provider == 'OVERTURE':
-            bbox4326 = bbox.to_crs(epsg=4326).geometry.iloc[0]
-            print(utils.shapely_bbox_2_eedem_bbox(bbox4326),)
-            _ = eedem_download(
-                dataset = 'OVERTURE/BUILDINGS',
-                bbox = utils.shapely_bbox_2_eedem_bbox(bbox4326),
-                band=None,
-                out = buildings_filename,
-                dmg = True
+            columns = ["id", "geometry", "height", "subtype", "class", "is_underground"]
+            provider_buildings = leafmap.get_overture_data(
+                overture_type = "building", 
+                bbox = bbox.to_crs(epsg=4326).total_bounds.tolist(), 
+                columns = columns
             )
-            provider_buildings = gpd.read_file(buildings_filename)
             
         elif provider.startswith('RER-REST'):
             # DOC: Retrieve from all subservices of the requested one.
@@ -421,7 +418,11 @@ def compute_wd_stats(
             flood_area_stats = dict(pd.Series(flood_area_values).describe())
             return flood_area_stats
                
-    flood_buildings_stats = [building_wd_stats(building) for _, building in buildings.iterrows()]
+    flood_buildings_stats = [
+        building_wd_stats(building) if building.is_flooded else None 
+        for _, building in buildings.iterrows()
+    ]
+            
     buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
