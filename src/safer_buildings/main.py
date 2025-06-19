@@ -425,7 +425,7 @@ def compute_wd_stats(
     
     waterdepth_raster = gdal.Open(waterdepth_filename)
 
-    def building_wd_stats(building):
+    def building_wd_stats_OLD(building):
         radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
         building_ring = utils.get_polygon_ring(gpd.GeoDataFrame({'geometry': [building.geometry]}, crs=buildings.crs), ring_buffer=radius_buffer)
         flood_area = gpd.overlay(waterdepth_mask, building_ring, how='intersection') if building.is_flooded else None
@@ -435,15 +435,32 @@ def compute_wd_stats(
             flood_area_values = utils.raster_sample_area(waterdepth_raster, flood_area.geometry.iloc[0])
             flood_area_stats = dict(pd.Series(flood_area_values).describe())
             return flood_area_stats
+        
+    def building_wd_stats(building_flood_area):
+        if building_flood_area is None or building_flood_area.empty:
+            return None
+        else:
+            flood_area_values = utils.raster_sample_area(waterdepth_raster, building_flood_area.geometry.iloc[0])
+            flood_area_stats = dict(pd.Series(flood_area_values).describe())
+            return flood_area_stats 
+        
+    radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
+    buildings_circles = buildings.buffer(radius=radius_buffer)
+    buildings_rings = buildings_circles.difference(buildings.geometry)
+    builidngs_flood_area = buildings_rings.intersection(waterdepth_mask.geometry.iloc[0])
+
+    buildings_flood_stats_gdf = gpd.GeoDataFrame(
+        {'geometry': builidngs_flood_area, 'is_flooded': buildings['is_flooded']},
+        crs=buildings.crs
+    )
+
+    flood_buildings_stats = buildings_flood_stats_gdf.apply(
+        lambda building: building_wd_stats(building) if building.is_flooded else None, 
+        axis=1
+    )
                
 
     # flood_buildings_stats = buildings.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
-    with ProcessPoolExecutor(max_workers=2) as executor:
-        futures = [
-            executor.submit(building_wd_stats, building)
-            for _, building in buildings.iterrows()
-        ]
-        flood_buildings_stats = [f.result() for f in futures]
 
             
     buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
