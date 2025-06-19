@@ -23,7 +23,6 @@ dependencies = [
     "geopandas",
     "overturemaps>=0.14.0",
     "leafmap",
-    "swifter",
 ]
 
 [project.optional-dependencies]
