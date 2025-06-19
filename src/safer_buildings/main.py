@@ -10,6 +10,8 @@ import datetime
 import numpy as np
 import pandas as pd
 
+import swifter
+
 from osgeo import gdal, ogr, osr
 from shapely.wkt import loads
 from shapely.geometry import box, Point, Polygon, MultiPolygon, LineString, MultiLineString
@@ -435,7 +437,7 @@ def compute_wd_stats(
             return flood_area_stats
                
 
-    flood_buildings_stats = buildings.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
+    flood_buildings_stats = buildings.swifter.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
 
             
     buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
