@@ -10,7 +10,7 @@ import datetime
 import numpy as np
 import pandas as pd
 
-import swifter
+from concurrent.futures import ProcessPoolExecutor
 
 from osgeo import gdal, ogr, osr
 from shapely.wkt import loads
@@ -437,7 +437,13 @@ def compute_wd_stats(
             return flood_area_stats
                
 
-    flood_buildings_stats = buildings.swifter.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
+    # flood_buildings_stats = buildings.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
+    with ProcessPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(building_wd_stats, building)
+            for _, building in buildings.iterrows()
+        ]
+        flood_buildings_stats = [f.result() for f in futures]
 
             
     buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
