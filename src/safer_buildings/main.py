@@ -303,8 +303,8 @@ def retrieve_buildings(
                     raise ValueError(f"Unsupported geometry type for service {service_id}: {RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].geometryType}")
 
                 rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
-                rest_gdf['service_id'] = service_id
-                rest_gdf['service_class'] = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].name.iloc[0]
+                rest_gdf['rer_id'] = service_id
+                rest_gdf['rer_class'] = RegioneEmiliaRomagnaLayers[RegioneEmiliaRomagnaLayers.id == service_id].name.iloc[0]
                     
                 return rest_gdf
             
@@ -479,7 +479,7 @@ def compute_wd_summary(
     if provider == 'OVERTURE':
         class_column = 'subtype'
     elif provider.startswith('RER-REST'):
-        class_column = 'service_class'
+        class_column = 'rer_class'
     else:
         raise ValueError(f"Provider '{provider}' is not supported for summary computation. Available providers are: {_PROVIDERS}.")     # DOC: Should never happen, but just in case.
     buildings[class_column] = buildings[class_column].fillna('other')
