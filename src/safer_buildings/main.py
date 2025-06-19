@@ -95,7 +95,7 @@ def validate_args(
     if buildings_filename is not None:
         if type(buildings_filename) is not str:
             raise TypeError("buildings_filename must be a string.")
-        if os.path.isfile(buildings_filename) is False:
+        if not buildings_filename.startswith('s3://') and os.path.isfile(buildings_filename) is False:
             raise FileNotFoundError(f"Buildings file not found: {buildings_filename}")
         
     if wd_thresh is None:
