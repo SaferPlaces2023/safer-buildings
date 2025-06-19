@@ -121,7 +121,7 @@ def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     """
     gdf_rings = gdf.copy()
     gdf_rings['geometry'] = gdf_rings.buffer(ring_buffer).geometry
-    gdf_rings = gpd.overlay(gdf_rings, gdf, how='difference')
+    gdf_rings = gpd.overlay(gdf_rings, gdf, how='difference').set_crs(gdf.crs)
     return gdf_rings
     
 

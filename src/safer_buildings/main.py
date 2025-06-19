@@ -432,10 +432,12 @@ def compute_wd_stats(
             flood_area_stats = dict(pd.Series(flood_area_values).describe())
             return flood_area_stats
                
-    flood_buildings_stats = [
-        building_wd_stats(building) if building.is_flooded else None 
-        for _, building in buildings.iterrows()
-    ]
+    # flood_buildings_stats = [
+    #     building_wd_stats(building) if building.is_flooded else None 
+    #     for _, building in buildings.iterrows()
+    # ]
+    flood_buildings_stats = buildings.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
+
             
     buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
