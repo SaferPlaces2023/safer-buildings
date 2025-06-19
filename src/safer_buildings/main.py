@@ -421,6 +421,8 @@ def compute_wd_stats(
     Compute statistics on water depth around flooded buildings.
     """
     
+    waterdepth_raster = gdal.Open(waterdepth_filename)
+
     def building_wd_stats(building):
         radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
         building_ring = utils.get_polygon_ring(gpd.GeoDataFrame({'geometry': [building.geometry]}, crs=buildings.crs), ring_buffer=radius_buffer)
@@ -428,14 +430,11 @@ def compute_wd_stats(
         if flood_area is None or flood_area.empty:
             return None
         else:
-            flood_area_values = utils.raster_sample_area(waterdepth_filename, flood_area.geometry.iloc[0])
+            flood_area_values = utils.raster_sample_area(waterdepth_raster, flood_area.geometry.iloc[0])
             flood_area_stats = dict(pd.Series(flood_area_values).describe())
             return flood_area_stats
                
-    # flood_buildings_stats = [
-    #     building_wd_stats(building) if building.is_flooded else None 
-    #     for _, building in buildings.iterrows()
-    # ]
+
     flood_buildings_stats = buildings.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
 
             

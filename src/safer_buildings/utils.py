@@ -203,8 +203,12 @@ def polygonize_raster_valid_data(raster_filename, band=1, mask_builder=None, bbo
     return gdf
 
 
-def raster_sample_area(raster_filename, area):
-    raster_ds = gdal.Open(raster_filename)
+def raster_sample_area(raster, area):
+    if type(raster) is str:
+        raster_ds = gdal.Open(raster)
+    else:
+        raster_ds = raster
+
     raster_proj = raster_ds.GetProjection()
     
     gt = raster_ds.GetGeoTransform()
