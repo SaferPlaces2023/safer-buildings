@@ -440,7 +440,7 @@ def compute_wd_stats(
         if building_flood_area is None or building_flood_area.empty:
             return None
         else:
-            flood_area_values = utils.raster_sample_area(waterdepth_raster, building_flood_area.geometry.iloc[0])
+            flood_area_values = utils.raster_sample_area(waterdepth_raster, building_flood_area.geometry)
             flood_area_stats = dict(pd.Series(flood_area_values).describe())
             return flood_area_stats 
         
