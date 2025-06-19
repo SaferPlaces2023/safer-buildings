@@ -472,12 +472,12 @@ def compute_wd_stats(
     buildings['flood_wd_75perc'] = None
     buildings['flood_wd_max'] = None
 
-    buildings.iloc[flood_buildings_stats.index]['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
-    buildings.iloc[flood_buildings_stats.index]['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
-    buildings.iloc[flood_buildings_stats.index]['flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
-    buildings.iloc[flood_buildings_stats.index]['flood_wd_median'] = [stats['50%'] if stats else None for stats in flood_buildings_stats]
-    buildings.iloc[flood_buildings_stats.index]['flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
-    buildings.iloc[flood_buildings_stats.index]['flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
+    buildings.loc[flood_buildings_stats.index, 'flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
+    buildings.loc[flood_buildings_stats.index, 'flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
+    buildings.loc[flood_buildings_stats.index, 'flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
+    buildings.loc[flood_buildings_stats.index, 'flood_wd_median'] = [stats['50%'] if stats else None for stats in flood_buildings_stats]
+    buildings.loc[flood_buildings_stats.index, 'flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
+    buildings.loc[flood_buildings_stats.index, 'flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
 
 
     # flood_buildings_stats['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
