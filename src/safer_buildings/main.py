@@ -445,7 +445,7 @@ def compute_wd_stats(
             return flood_area_stats 
         
     radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
-    buildings_circles = buildings.buffer(radius=radius_buffer)
+    buildings_circles = buildings.buffer(radius_buffer)
     buildings_rings = buildings_circles.difference(buildings.geometry)
     builidngs_flood_area = buildings_rings.intersection(waterdepth_mask.geometry.iloc[0])
 
