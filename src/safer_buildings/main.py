@@ -231,7 +231,7 @@ def retrieve_buildings(
     
     if buildings_filename is not None:
         provider_buildings = gpd.read_file(buildings_filename)
-        bbox = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs="EPSG:4326").to_crs(utils.get_geodataframe_crs(provider_buildings))
+        bbox = bbox.to_crs(utils.get_geodataframe_crs(provider_buildings))
         provider_buildings = gpd.overlay(provider_buildings, bbox, how='intersection')
         print(f"## Using provided buildings data from {buildings_filename}. Found {len(provider_buildings)} buildings.")
     
