@@ -452,7 +452,7 @@ def compute_wd_stats(
     )
     buildings_flood_stats_gdf = buildings_flood_stats_gdf[
         (buildings_flood_stats_gdf['is_flooded']) &
-        ((buildings_flood_stats_gdf.geometry.is_empty() == False) | (buildings_flood_stats_gdf.geometry.notna()))
+        ((buildings_flood_stats_gdf.geometry.is_empty == False) | (buildings_flood_stats_gdf.geometry.notna()))
     ]
 
 
