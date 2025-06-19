@@ -437,12 +437,9 @@ def compute_wd_stats(
             return flood_area_stats
         
     def building_wd_stats(building_flood_area):
-        if building_flood_area is None or building_flood_area.empty:
-            return None
-        else:
-            flood_area_values = utils.raster_sample_area(waterdepth_raster, building_flood_area.geometry)
-            flood_area_stats = dict(pd.Series(flood_area_values).describe())
-            return flood_area_stats 
+        flood_area_values = utils.raster_sample_area(waterdepth_raster, building_flood_area)
+        flood_area_stats = dict(pd.Series(flood_area_values).describe())
+        return flood_area_stats 
         
     radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
     buildings_circles = buildings.buffer(radius_buffer)
@@ -453,11 +450,13 @@ def compute_wd_stats(
         {'geometry': builidngs_flood_area, 'is_flooded': buildings['is_flooded']},
         crs=buildings.crs
     )
+    buildings_flood_stats_gdf = buildings_flood_stats_gdf[
+        (buildings_flood_stats_gdf['is_flooded']) &
+        ((buildings_flood_stats_gdf.geometry.is_empty() == False) | (buildings_flood_stats_gdf.geometry.notna()))
+    ]
 
-    flood_buildings_stats = buildings_flood_stats_gdf.apply(
-        lambda building: building_wd_stats(building) if building.is_flooded else None, 
-        axis=1
-    )
+
+    flood_buildings_stats = buildings_flood_stats_gdf.geometry.apply(lambda building: building_wd_stats(building))
                
 
     # flood_buildings_stats = buildings.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
