@@ -425,17 +425,6 @@ def compute_wd_stats(
     
     waterdepth_raster = gdal.Open(waterdepth_filename)
 
-    def building_wd_stats_OLD(building):
-        radius_buffer = _RING_BUFFER_M * (1 if utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
-        building_ring = utils.get_polygon_ring(gpd.GeoDataFrame({'geometry': [building.geometry]}, crs=buildings.crs), ring_buffer=radius_buffer)
-        flood_area = gpd.overlay(waterdepth_mask, building_ring, how='intersection') if building.is_flooded else None
-        if flood_area is None or flood_area.empty:
-            return None
-        else:
-            flood_area_values = utils.raster_sample_area(waterdepth_raster, flood_area.geometry.iloc[0])
-            flood_area_stats = dict(pd.Series(flood_area_values).describe())
-            return flood_area_stats
-        
     def building_wd_stats(building_flood_area):
         flood_area_values = utils.raster_sample_area(waterdepth_raster, building_flood_area)
         flood_area_stats = dict(pd.Series(flood_area_values).describe())
@@ -446,39 +435,7 @@ def compute_wd_stats(
     buildings_rings = buildings_circles.difference(buildings.geometry)
     builidngs_flood_area = buildings_rings.intersection(waterdepth_mask.geometry.iloc[0])
 
-    # buildings_flood_stats_gdf = gpd.GeoDataFrame(
-    #     {'geometry': builidngs_flood_area, 'is_flooded': buildings['is_flooded']},
-    #     crs=buildings.crs
-    # )
-    # buildings_flood_stats_gdf = buildings_flood_stats_gdf[
-    #     (buildings_flood_stats_gdf['is_flooded']) &
-    #     ((buildings_flood_stats_gdf.geometry.is_empty == False) | (buildings_flood_stats_gdf.geometry.notna()))
-    # ]
-
-
-    # flood_buildings_stats = buildings_flood_stats_gdf.geometry.apply(lambda building: building_wd_stats(building))
-    
-    # flood_buildings_values = buildings_flood_stats_gdf.geometry.apply(lambda building_flood_area: utils.raster_sample_area(waterdepth_raster, building_flood_area))
-    # flood_buildings_stats = flood_buildings_values.apply(lambda flood_area: dict(pd.Series(flood_area).describe()) if flood_area is not None and len(flood_area) > 0 else None)
-
-           
-
     flood_buildings_stats = [building_wd_stats(building_flood_area) if is_flooded else None for building_flood_area,is_flooded in zip(builidngs_flood_area, buildings['is_flooded'])]
-
-    # buildings['flood_wd_min'] = None
-    # buildings['flood_wd_25perc'] = None
-    # buildings['flood_wd_mean'] = None
-    # buildings['flood_wd_median'] = None
-    # buildings['flood_wd_75perc'] = None
-    # buildings['flood_wd_max'] = None
-
-    # buildings.loc[flood_buildings_stats.index, 'flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
-    # buildings.loc[flood_buildings_stats.index, 'flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
-    # buildings.loc[flood_buildings_stats.index, 'flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
-    # buildings.loc[flood_buildings_stats.index, 'flood_wd_median'] = [stats['50%'] if stats else None for stats in flood_buildings_stats]
-    # buildings.loc[flood_buildings_stats.index, 'flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
-    # buildings.loc[flood_buildings_stats.index, 'flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
-
 
     buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
@@ -487,9 +444,6 @@ def compute_wd_stats(
     buildings['flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
     buildings['flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
 
-    # insert flood
-
-    
     return buildings
 
 
@@ -508,7 +462,7 @@ def compute_wd_summary(
     def base_summary(gdf):
         _base_summary = {
             'total_buildings': len(gdf),
-            'flooded_buildings': len(gdf[gdf['is_flooded']]),
+            'flooded_buildings': int(gdf['is_flooded'].sum()),
         }
         if include_stats:
             _base_summary.update({
@@ -663,7 +617,7 @@ def compute_flood(
     feature_collection['metadata'] = {
         'provider': provider,
         'buildings_count': len(filtered_flooded_buildings),
-        'flooded_buildings_count': len(filtered_flooded_buildings['is_flooded']),
+        'flooded_buildings_count': int(filtered_flooded_buildings['is_flooded'].sum()),
         'summary': summary_stats if compute_summary else None
     }
     feature_collection['crs'] = {
