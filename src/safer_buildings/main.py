@@ -190,8 +190,8 @@ def validate_args(
         compute_summary = False
     if type(compute_summary) is not bool:
         raise TypeError("compute_summary must be a boolean value.")
-    if compute_summary:
-        compute_stats = True  # If summary is requested, stats must be computed as well.
+    # if compute_summary:
+    #     compute_stats = True  # If summary is requested, stats must be computed as well.
         
     print("## Input arguments validated successfully.")
     print(f"### Water depth file: {waterdepth_filename}")
@@ -495,7 +495,8 @@ def compute_wd_stats(
 
 def compute_wd_summary(
     buildings: gpd.GeoDataFrame,
-    provider: str
+    provider: str,
+    include_stats: bool
 ) -> dict:
     """
     Compute summary statistics for flooded buildings.
@@ -507,14 +508,17 @@ def compute_wd_summary(
     def base_summary(gdf):
         _base_summary = {
             'total_buildings': len(gdf),
-            'flooded_buildings': int(gdf['is_flooded'].sum()),
-            'flood_wd_min': float(np.nanmin(gdf['flood_wd_min'].values)),
-            'flood_wd_25perc': float(np.nanpercentile(gdf['flood_wd_25perc'].values, 25)),
-            'flood_wd_mean': float(np.nanmean(gdf['flood_wd_mean'].values)),
-            'flood_wd_median': float(np.nanmedian(gdf['flood_wd_median'].values)),
-            'flood_wd_75perc': float(np.nanpercentile(gdf['flood_wd_75perc'].values, 75)),
-            'flood_wd_max': float(np.nanmax(gdf['flood_wd_max'].values))
+            'flooded_buildings': len(gdf[gdf['is_flooded']]),
         }
+        if include_stats:
+            _base_summary.update({
+                'flood_wd_min': float(np.nanmin(gdf['flood_wd_min'].values)),
+                'flood_wd_25perc': float(np.nanpercentile(gdf['flood_wd_25perc'].values, 25)),
+                'flood_wd_mean': float(np.nanmean(gdf['flood_wd_mean'].values)),
+                'flood_wd_median': float(np.nanmedian(gdf['flood_wd_median'].values)),
+                'flood_wd_75perc': float(np.nanpercentile(gdf['flood_wd_75perc'].values, 75)),
+                'flood_wd_max': float(np.nanmax(gdf['flood_wd_max'].values))
+            })
         _base_summary = {k: v if not np.isnan(v) else None for k, v in _base_summary.items()}
         return _base_summary
     
@@ -645,7 +649,8 @@ def compute_flood(
         print('# Computing summary statistics for flooded buildings ...')
         summary_stats = compute_wd_summary(
             buildings=filtered_flooded_buildings,
-            provider=provider
+            provider=provider,
+            include_stats=compute_stats,
         )
         print("## Summary statistics computed for flooded buildings.") 
     
