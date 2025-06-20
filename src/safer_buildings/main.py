@@ -463,7 +463,7 @@ def compute_wd_stats(
 
            
 
-    flood_buildings_stats = buildings.apply(lambda building: building_wd_stats(building) if building.is_flooded else None, axis=1)
+    flood_buildings_stats = [building_wd_stats(building_flood_area) if is_flooded else None for building_flood_area,is_flooded in zip(builidngs_flood_area, buildings['is_flooded'])]
 
     # buildings['flood_wd_min'] = None
     # buildings['flood_wd_25perc'] = None
@@ -480,12 +480,12 @@ def compute_wd_stats(
     # buildings.loc[flood_buildings_stats.index, 'flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
 
 
-    flood_buildings_stats['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
-    flood_buildings_stats['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
-    flood_buildings_stats['flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
-    flood_buildings_stats['flood_wd_median'] = [stats['50%'] if stats else None for stats in flood_buildings_stats]
-    flood_buildings_stats['flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
-    flood_buildings_stats['flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_median'] = [stats['50%'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
+    buildings['flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
 
     # insert flood
 
