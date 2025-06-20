@@ -194,5 +194,8 @@ cython_debug/
 .cursorindexingignore
 
 # Test folder
+tests/*
+!tests/*.py
 /**/*.geojson
 /**/__pycache__/
+*.tif

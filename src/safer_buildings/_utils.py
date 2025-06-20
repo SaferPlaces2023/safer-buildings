@@ -135,6 +135,7 @@ def get_raster_crs(raster_filename):
     wkt = dataset.GetProjection()
     srs = osr.SpatialReference()
     srs.ImportFromWkt(wkt)
+    srs.AutoIdentifyEPSG()
     epsg_string = f"EPSG:{srs.GetAuthorityCode(None)}"
     dataset = None 
     return epsg_string

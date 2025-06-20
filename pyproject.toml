@@ -19,6 +19,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "python-dotenv",
     "numpy<2",
     "geopandas",
     "overturemaps>=0.14.0",
