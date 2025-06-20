@@ -7,6 +7,7 @@ import numpy as np
 from osgeo import gdal, osr, ogr
 
 from shapely.wkt import loads
+from shapely.ops import unary_union
 from shapely.geometry import box, Polygon
 import geopandas as gpd
 
