@@ -62,8 +62,6 @@ RegioneEmiliaRomagnaLayers = _list_rest_layers()
 _PROVIDERS = (
     'OVERTURE',
     * RegioneEmiliaRomagnaLayers.provider_name.to_list(),
-    
-    'DIRECTED-BUILDINGS'    # DOC: Builidngs from RER-REST + Overture (and if possible its intersection) in Directed Project default bbox
 )
 
 
@@ -333,9 +331,6 @@ def retrieve_buildings(
             
             provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
         
-        elif provider == 'DIRECTED-BUILDINGS':
-            provider_buildings = gpd.read_file('s3://s3-directed/Directed/Rimini/buildings/Rimini_coast_crop_rer_default.geojson')
-        
         else:
             raise ValueError(f"Provider '{provider}' is not supported. Available providers are: {_PROVIDERS}.")
 
@@ -486,7 +481,7 @@ def compute_wd_summary(
     class_column = None
     if provider == 'OVERTURE':
         class_column = 'subtype'
-    elif provider.startswith('RER-REST') or provider == 'DIRECTED-BUILDINGS':
+    elif provider.startswith('RER-REST'):
         class_column = 'rer_class'
     else:
         raise ValueError(f"Provider '{provider}' is not supported for summary computation. Available providers are: {_PROVIDERS}.")     # DOC: Should never happen, but just in case.
