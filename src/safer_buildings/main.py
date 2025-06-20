@@ -643,8 +643,8 @@ def compute_flood(
 # DOC: Main function to run the flooded buildings analysis from command line
 
 @click.command()
-@click.option('--wd', type=click.Path(exists=True), required=True, help='Path to the water depth raster file.')
-@click.option('--buildings', type=click.Path(exists=True), default=None, help='Path to the buildings vector file.')
+@click.option('--water', type=click.Path(exists=True), required=True, help='Path to the water depth raster file.')
+@click.option('--building','--buildings', type=click.Path(exists=True), default=None, help='Path to the buildings vector file.')
 @click.option('--wd_thresh', type=float, default=0.5, help='Water depth threshold for significant flooding (default: 0.5).')
 @click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy). If None, the total bounds of the water depth raster will be used.')
 @click.option('--out', type=click.Path(), default=None, help='Output path for the results.')
@@ -654,9 +654,16 @@ def compute_flood(
 @click.option('--only_flood', is_flag=True, required=False, default=False, help="Only return flooded buildings (default: False).")
 @click.option('--stats', is_flag=True, required=False, default=False, help="Compute water depth statistics for flooded buildings.")
 @click.option('--summary', is_flag=True, required=False, default=False, help="Returns an additional metadata field with aggregated statistic based on building type and class. If true, stats will be computed as well.")
+
+@click.option("--version", is_flag=True, required=False, default=False,
+              help="Print version.")
+@click.option("--debug", is_flag=True, required=False, default=False,
+              help="Debug mode.")
+@click.option("--verbose", required=False, is_flag=True, type=click.BOOL, default=False,
+              help="verbose mode.")
 def main(
-    wd,
-    buildings,
+    water,
+    building,
     wd_thresh,
     bbox,
     out,
@@ -665,7 +672,10 @@ def main(
     filters,
     only_flood,
     stats,
-    summary
+    summary,
+    version,
+    debug,
+    verbose
 ):
     """
     Main function to run the flooded buildings analysis from command line.
@@ -684,8 +694,8 @@ def main(
         filters = json.loads(filters.replace("'", '"'))  # Convert single quotes to double quotes for JSON parsing
         
     print("# CLI parameters:")
-    print(f"## Water depth file: {wd}")
-    print(f"## Buildings file: {buildings}")
+    print(f"## Water depth file: {water}")
+    print(f"## Buildings file: {building}")
     print(f"## Water depth threshold: {wd_thresh}")
     print(f"## Bounding box: {bbox}")
     print(f"## Output file: {out}")
@@ -697,8 +707,8 @@ def main(
     print(f"## Summary: {summary}")
     
     result = compute_flood(
-        waterdepth_filename = wd,
-        buildings_filename = buildings,
+        waterdepth_filename = water,
+        buildings_filename = building,
         wd_thresh = wd_thresh,
         bbox = tuple(bbox) if bbox else None,
         out = out,
