@@ -27,8 +27,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-with_gdal = [
-    "gdal @ https://download.lfd.uci.edu/pythonlibs/archived/GDAL-3.4.3-cp311-cp311-win_amd64.whl"
+with_gdal_py37 = [
+    "gdal @ https://download.lfd.uci.edu/pythonlibs/archived/GDAL-3.4.2-cp37-cp37m-win_amd64.whl"
+]
+with_gdal_py39 = [
+    "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2024.9.22/GDAL-3.9.2-cp39-cp39-win_amd64.whl"
+]
+with_gdal_py310 = [
+    "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2024.9.22/GDAL-3.9.2-cp310-cp310-win_amd64.whl"
+]
+with_gdal_py311 = [
+    "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2024.9.22/GDAL-3.9.2-cp311-cp311-win_amd64.whl"
+]
+with_gdal_py312 = [
+    "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2024.9.22/GDAL-3.9.2-cp312-cp312-win_amd64.whl"
 ]
 
 [project.scripts]
