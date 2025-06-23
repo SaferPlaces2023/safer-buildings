@@ -121,8 +121,10 @@ def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     Get the exterior ring of the first polygon in the GeoDataFrame.
     """
     gdf_rings = gdf.copy()
+    gdf_rings.to_crs(epsg=3857, inplace=True)
     gdf_rings['geometry'] = gdf_rings.buffer(ring_buffer).geometry
-    gdf_rings = gpd.overlay(gdf_rings, gdf, how='difference').set_crs(gdf.crs)
+    gdf_rings = gpd.overlay(gdf_rings, gdf.to_crs(epsg=3857), how='difference').set_crs(gdf_rings.crs)
+    gdf_rings.to_crs(epsg=gdf.crs.to_epsg(), inplace=True)
     return gdf_rings
     
 

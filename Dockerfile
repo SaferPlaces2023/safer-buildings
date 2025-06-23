@@ -3,10 +3,10 @@
 #FROM ghcr.io/osgeo/gdal:ubuntu-small-3.7.0
 FROM 901702069075.dkr.ecr.us-east-1.amazonaws.com/docker-gdal
 
-COPY src /var/tmp/safer_buildings/src
-COPY pyproject.toml /var/tmp/safer_buildings/
-COPY .git /var/tmp/safer_buildings/.git
-WORKDIR /var/tmp/safer_buildings 
+COPY src /var/tmp/safer-buildings/src
+COPY pyproject.toml /var/tmp/safer-buildings/
+COPY .git /var/tmp/safer-buildings/.git
+WORKDIR /var/tmp/safer-buildings 
 RUN pip install .
 ADD tests /var/task/tests
 
@@ -15,7 +15,7 @@ RUN pip cache purge
 RUN apt-get remove -y git && \
     apt-get autoremove -y && \
     apt-get clean
-RUN rm -rf /var/tmp/safer_buildings/
+RUN rm -rf /var/tmp/safer-buildings/
 
 # AWS Lambda
 # copy the entrypoint script to use it like awslinux2

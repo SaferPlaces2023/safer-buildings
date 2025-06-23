@@ -73,7 +73,7 @@ def validate_args(
     if out is not None:
         if type(out) is not str:
             raise TypeError("out must be a string.") 
-        if _utils.justext(out) not in ['.geojson', '.json']:
+        if not (out.endswith('.geojson') or out.endswith('.json')):
             raise ValueError("out must be a file path ending with .geojson or .json.")
     else:
         out = os.path.join(os.getcwd(), f"safer_buildings_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.geojson")

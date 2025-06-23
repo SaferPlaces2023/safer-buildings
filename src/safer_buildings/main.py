@@ -171,7 +171,7 @@ def compute_flood(
         out_tmp = f"{_utils.juststem(out)}.geojson"
         with open(out_tmp, 'w') as f:
             json.dump(feature_collection, f, indent=2)
-        module_s3.s3_upload(filename = out_tmp,bucket = out)    
+        module_s3.s3_upload(filename = out_tmp, uri = out)    
     else:
         with open(out, 'w') as f:
             json.dump(feature_collection, f, indent=2)
