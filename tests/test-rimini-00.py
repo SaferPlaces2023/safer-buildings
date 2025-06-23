@@ -18,7 +18,7 @@ class Test(unittest.TestCase):
         
         args = {
             'water':        "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/rimini-wd.tif",
-            'building':    "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson",
+            'building':     "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson",
             'out':          "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/test-rimini-wd-00-output-00.geojson",
             'provider':     "RER-REST/1",
             'summary':      True,

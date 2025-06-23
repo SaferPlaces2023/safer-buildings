@@ -1,4 +1,6 @@
 import os
+import sys
+import logging
 import datetime
 import tempfile
 
@@ -11,9 +13,32 @@ from shapely.ops import unary_union
 from shapely.geometry import box, Polygon
 import geopandas as gpd
 
+from .module_log import Logger
+from .module_version import get_version
+
 _base_temp_dir = tempfile.gettempdir()
 _module_temp_dir = os.path.join(_base_temp_dir, 'safer_buildings')
 os.makedirs(_module_temp_dir, exist_ok=True)
+
+
+
+def process_cli_args(
+    version: bool = False,
+    debug: bool = False,
+    verbose: bool = False,
+):
+    if version:
+        Logger.setLevel(logging.INFO)  # Set to ERROR to avoid debug logs in version output
+        Logger.info(f"safer-buildings v-{get_version()}")
+        sys.exit(0)
+        
+    if debug:
+        Logger.setLevel(logging.DEBUG)
+    if verbose:
+        Logger.setLevel(logging.INFO)
+    else:
+        Logger.setLevel(logging.ERROR)
+
 
 
 def temp_filename(ext, prefix=''):

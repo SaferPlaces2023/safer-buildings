@@ -147,18 +147,18 @@ def validate_args(
     if type(compute_summary) is not bool:
         raise TypeError("compute_summary must be a boolean value.")
         
-    Logger.info("## Input arguments validated successfully.")
-    Logger.info(f"### Water depth file: {waterdepth_filename}")
-    Logger.info(f"### Buildings file: {buildings_filename}")
-    Logger.info(f"### Water depth threshold: {wd_thresh}")
-    Logger.info(f"### Bounding box (total bounds): {bbox.total_bounds}")
-    Logger.info(f"### Output file: {out}")
-    Logger.info(f"### Target SRS: {t_srs}")
-    Logger.info(f"### Providers: {provider}")
-    Logger.info(f"### Feature filters: {feature_filters}")
-    Logger.info(f"### Only flood: {only_flood}")
-    Logger.info(f"### Compute stats: {compute_stats}")
-    Logger.info(f"### Compute summary: {compute_summary}")
+    Logger.debug("## Input arguments validated successfully.")
+    Logger.debug(f"### Water depth file: {waterdepth_filename}")
+    Logger.debug(f"### Buildings file: {buildings_filename}")
+    Logger.debug(f"### Water depth threshold: {wd_thresh}")
+    Logger.debug(f"### Bounding box (total bounds): {bbox.total_bounds}")
+    Logger.debug(f"### Output file: {out}")
+    Logger.debug(f"### Target SRS: {t_srs}")
+    Logger.debug(f"### Providers: {provider}")
+    Logger.debug(f"### Feature filters: {feature_filters}")
+    Logger.debug(f"### Only flood: {only_flood}")
+    Logger.debug(f"### Compute stats: {compute_stats}")
+    Logger.debug(f"### Compute summary: {compute_summary}")
         
     return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary
 

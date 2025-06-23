@@ -72,10 +72,10 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
                 ETag = client.head_object(Bucket=bucket_name, Key=key_name)[
                     'ETag'][1:-1]
         except ClientError as ex:
-            # Logger.info(f"ETAG:{ex}")
+            # Logger.debug(f"ETAG:{ex}")
             ETag = ""
         except NoCredentialsError as ex:
-            Logger.info(ex)
+            Logger.debug(ex)
             ETag = ""
         return ETag
     else:
@@ -139,10 +139,10 @@ def s3_download(uri, fileout=None, remove_src=False, client=None):
                     fileout = f"{fileout}/{_utils.justfname(key)}"
 
                 if os.path.isfile(fileout) and s3_equals(uri, fileout, client):
-                    Logger.info(f"using cached file {fileout}")
+                    Logger.debug(f"using cached file {fileout}")
                 else:
                     # Download the file
-                    Logger.info(f"downloading {uri} into {fileout}...")
+                    Logger.debug(f"downloading {uri} into {fileout}...")
                     os.makedirs(_utils.justpath(fileout), exist_ok=True)
                     client.download_file(
                         Filename=fileout, Bucket=bucket_name, Key=key)
@@ -160,10 +160,10 @@ def s3_download(uri, fileout=None, remove_src=False, client=None):
                                     f"{dst}/{pathname}", client)
 
         except ClientError as ex:
-            Logger.info(ex)
+            Logger.debug(ex)
             return None
         except NoCredentialsError as ex:
-            Logger.info(ex)
+            Logger.debug(ex)
             return None
 
     return fileout if os.path.isfile(fileout) else None
@@ -181,9 +181,9 @@ def s3_upload(filename, uri, remove_src=False, client=None):
         if bucket_name and key and filename and os.path.isfile(filename):
             client = get_client(client)
             if s3_equals(uri, filename, client):
-                Logger.info(f"file {filename} already uploaded")
+                Logger.debug(f"file {filename} already uploaded")
             else:
-                Logger.info(f"uploading {filename} into {bucket_name}/{key}...")
+                Logger.debug(f"uploading {filename} into {bucket_name}/{key}...")
 
                 extra_args = {}
 
@@ -193,7 +193,7 @@ def s3_upload(filename, uri, remove_src=False, client=None):
 
 
             if remove_src:
-                Logger.info(f"removing {filename}")
+                Logger.debug(f"removing {filename}")
                 os.unlink(filename)  # unlink and not ogr_remove!!!
             return filename
 
@@ -265,7 +265,7 @@ def generate_presigned_url(uri, expiration=3600, client=None):
         )
         return url
     except Exception as e:
-        Logger.info(f"Errore nella generazione del pre-signed URL: {e}")
+        Logger.debug(f"Errore nella generazione del pre-signed URL: {e}")
         return None
     
     
@@ -294,7 +294,7 @@ def copy_s3_object(source_uri, destination_uri, client=None):
         )
         return True
     except Exception as e:
-        Logger.info(f"Errore nella copia dell'oggetto S3: {e}")
+        Logger.debug(f"Errore nella copia dell'oggetto S3: {e}")
         return False
     
     
@@ -313,7 +313,7 @@ def delete_s3_object(uri, client=None):
         client.delete_object(Bucket=bucket_name, Key=key)
         return True
     except Exception as e:
-        Logger.info(f"Errore nell'eliminazione dell'oggetto S3: {e}")
+        Logger.debug(f"Errore nell'eliminazione dell'oggetto S3: {e}")
         return False
     
     

@@ -28,10 +28,10 @@ def retrieve_buildings(
         provider_buildings = gpd.read_file(buildings_filename)
         bbox = bbox.to_crs(_utils.get_geodataframe_crs(provider_buildings))
         provider_buildings = gpd.overlay(provider_buildings, bbox, how='intersection')
-        Logger.info(f"## Using provided buildings data from {buildings_filename}. Found {len(provider_buildings)} buildings.")
+        Logger.debug(f"## Using provided buildings data from {buildings_filename}. Found {len(provider_buildings)} buildings.")
     
     else:
-        Logger.info(f"## Retrieving buildings data from provider: {provider} ...")
+        Logger.debug(f"## Retrieving buildings data from provider: {provider} ...")
             
         buildings_filename = _utils.temp_filename(ext='shp', prefix=f"{provider.replace('/','-')}_buildings")
         
@@ -42,7 +42,7 @@ def retrieve_buildings(
         else:
             raise ValueError(f"Provider '{provider}' is not supported. Available providers are: {_consts._PROVIDERS}.")
 
-        Logger.info(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(provider_buildings)} buildings)")        
+        Logger.debug(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(provider_buildings)} buildings)")        
         
     return provider_buildings
 
@@ -124,12 +124,12 @@ def retrieve_rer_rest(provider, bbox):
         return rest_gdf
     
     def overture_intersection(gdf_re):
-        Logger.info(f"### Overture intersection for {len(gdf_re)} RER-REST Points.")
+        Logger.debug(f"### Overture intersection for {len(gdf_re)} RER-REST Points.")
         gdf_ot = retrieve_overture()
         gdf_re['ot_id'] = gdf_re.geometry.apply(lambda geom: gdf_ot[gdf_ot.geometry.contains(geom)].id.values.tolist() if type(geom) is Point else None)
         gdf_re['ot_id'] = gdf_re['ot_id'].apply(lambda ids: ids[0] if ids is not None and len(ids) > 0 else None)
         gdf_re['geometry'] = gdf_re.apply(lambda row: gdf_ot[gdf_ot.id == row.ot_id].iloc[0].geometry if row.ot_id is not None else row.geometry, axis=1)
-        Logger.info(f'### Overture intersection: Taking overture building from {len(gdf_re[gdf_re.ot_id.notnull()])} original RER-REST Points.')
+        Logger.debug(f'### Overture intersection: Taking overture building from {len(gdf_re[gdf_re.ot_id.notnull()])} original RER-REST Points.')
         return gdf_re
 
     def buffer_points(gdf, buffer_meters = 20):

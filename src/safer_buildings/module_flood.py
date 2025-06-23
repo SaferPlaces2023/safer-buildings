@@ -28,6 +28,6 @@ def get_flooded_buildings(
     buildings['is_flooded'] = buildings['__tmp_identifier__'].apply(lambda tmp_id: tmp_id in flooded_buildings['__tmp_identifier__'].to_list())
     buildings.drop(columns=['__tmp_identifier__'], inplace=True)
     
-    Logger.info(f"### Found {len(flooded_buildings)} flooded buildings out of {len(buildings)} total buildings.")
+    Logger.debug(f"### Found {len(flooded_buildings)} flooded buildings out of {len(buildings)} total buildings.")
     
     return buildings

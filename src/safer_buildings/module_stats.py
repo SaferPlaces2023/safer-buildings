@@ -20,9 +20,9 @@ def filter_by_feature(
     """
 
     if only_flood:
-        Logger.info('## Filtering only flooded buildings ...')
+        Logger.debug('## Filtering only flooded buildings ...')
         filtered_flooded_buildings = filtered_flooded_buildings[filtered_flooded_buildings['is_flooded']]
-        Logger.info(f"### Only flooded buildings retained: {len(filtered_flooded_buildings)} out of {len(gdf)}.")
+        Logger.debug(f"### Only flooded buildings retained: {len(filtered_flooded_buildings)} out of {len(gdf)}.")
 
     if len(feature_filters) > 0:
         filtered_gdfs = []

@@ -21,7 +21,7 @@ import leafmap
 
 from . import _utils
 from .module_log import Logger
-from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_s3
+from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_s3, module_version
 
 
 from dotenv import load_dotenv
@@ -35,7 +35,7 @@ load_dotenv()
 # DOC: Main function to compute flooded buildings
 
 def compute_flood(
-    water: str,
+    water: str | None = None,
     building: str | None = None,
     wd_thresh: float = 0.5,
     bbox: tuple[float, float, float, float] | None = None,
@@ -45,7 +45,12 @@ def compute_flood(
     filters: dict[str, list[dict[str, list|str|int]]] | None = None,
     only_flood: bool = False,
     stats: bool = False,
-    summary: bool = False
+    summary: bool = False,
+    
+    # Additional parameters for CLI
+    version: bool = False,
+    debug: bool = False,
+    verbose: bool = False
 ) -> str:
     
     """
@@ -63,13 +68,23 @@ def compute_flood(
     Returns:
         str: Path to the output file containing flooded buildings.
     """
+    
+    try:
+        _utils.process_cli_args(
+            version = version,
+            debug = debug,
+            verbose = verbose
+        )
+    except SystemExit as e:
+        return
+    
 
     # DOC: 0 — Print GECO logo
     module_logo.logo()
     
     
     # DOC: 1 — Validate args.
-    Logger.info("# Validating input arguments ...")
+    Logger.debug("# Validating input arguments ...")
     validated_args = module_args.validate_args(
         waterdepth_filename = water,
         buildings_filename = building,
@@ -87,7 +102,7 @@ def compute_flood(
     
     
     # DOC: 2 — Gather buildings
-    Logger.info(f'# Gather buildings data ...')
+    Logger.debug(f'# Gather buildings data ...')
     provider_buildings = module_retriever.retrieve_buildings(
         buildings_filename=buildings_filename,
         bbox=bbox,
@@ -96,7 +111,7 @@ def compute_flood(
     
     
     # DOC: 3 — Polygonize waterdepth (compute one time and reuse for multiple providers)
-    Logger.info('# Processing water depth data (raster to polygon) ...')
+    Logger.debug('# Processing water depth data (raster to polygon) ...')
     waterdepth_polygonized = _utils.polygonize_raster_valid_data(
         raster_filename=waterdepth_filename,
         band=1,
@@ -106,7 +121,7 @@ def compute_flood(
     
     
     # DOC: 4 — Intersect buildings with water depth
-    Logger.info('# Intersecting buildings with water depth ...')
+    Logger.debug('# Intersecting buildings with water depth ...')
     flooded_buildings = module_flood.get_flooded_buildings(
         waterdepth_mask = waterdepth_polygonized,
         buildings = provider_buildings
@@ -114,40 +129,40 @@ def compute_flood(
         
     
     # DOC: 5 — Filter features
-    Logger.info('# Filtering features ...')
+    Logger.debug('# Filtering features ...')
     filtered_flooded_buildings = module_stats.filter_by_feature(
         gdf = flooded_buildings,
         feature_filters = feature_filters,
         only_flood = only_flood
     )
-    Logger.info(f"## Filtered {len(filtered_flooded_buildings)} buildings out from {len(flooded_buildings)}.")
+    Logger.debug(f"## Filtered {len(filtered_flooded_buildings)} buildings out from {len(flooded_buildings)}.")
     
     
     # DOC: 6 — Compute water depth stats over flooded buildings
     if compute_stats:
-        Logger.info('# Computing water depth stats over flooded buildings ...')
+        Logger.debug('# Computing water depth stats over flooded buildings ...')
         filtered_flooded_buildings = module_stats.compute_wd_stats(
             waterdepth_filename=waterdepth_filename,
             waterdepth_mask=waterdepth_polygonized,
             buildings=filtered_flooded_buildings
         )
-        Logger.info("## Water depth stats computed for flooded buildings.")
+        Logger.debug("## Water depth stats computed for flooded buildings.")
         
     
     # DOC: 7 — Compute summary if requested
     if compute_summary:
-        Logger.info('# Computing summary statistics for flooded buildings ...')
+        Logger.debug('# Computing summary statistics for flooded buildings ...')
         summary_stats = module_stats.compute_wd_summary(
             buildings=filtered_flooded_buildings,
             provider=provider,
             include_stats=compute_stats,
         )
-        Logger.info("## Summary statistics computed for flooded buildings.") 
+        Logger.debug("## Summary statistics computed for flooded buildings.") 
     
         
     
     # DOC: 8 — Return results
-    Logger.info('# Preparing geojson output results ...')
+    Logger.debug('# Preparing geojson output results ...')
     filtered_flooded_buildings = filtered_flooded_buildings.to_crs(t_srs)
     feature_collection = filtered_flooded_buildings.to_geo_dict()
     feature_collection['metadata'] = {
@@ -162,11 +177,11 @@ def compute_flood(
             "name": f"urn:ogc:def:crs:{t_srs.replace(':', '::')}"  # REF: https://gist.github.com/sgillies/1233327 lines 256:271
         }
     }
-    Logger.info(f"## Buildings feature collection prepared with {len(feature_collection['features'])} features.")
+    Logger.debug(f"## Buildings feature collection prepared with {len(feature_collection['features'])} features.")
         
     
     # DOC: 9 — Save results to file
-    Logger.info(f'# Saving results to {out} ...')
+    Logger.debug(f'# Saving results to {out} ...')
     if out.startswith('s3://'):
         out_tmp = _utils.temp_filename(ext='geojson', prefix='safer-buildings_out')
         with open(out_tmp, 'w') as f:
@@ -177,7 +192,7 @@ def compute_flood(
             json.dump(feature_collection, f, indent=2)
         
     
-    Logger.info(f"## Results saved to {out}")
+    Logger.debug(f"## Results saved to {out}")
     
     return feature_collection
 
@@ -231,24 +246,30 @@ def main(
     In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """
     
-    Logger.info("# Starting flooded buildings analysis ...")
+    _utils.process_cli_args(
+        version = version,
+        debug = debug,
+        verbose = verbose
+    )
+    
+    Logger.debug("# Starting flooded buildings analysis ...")
     time_start = time.time()
     
     if filters:
         filters = json.loads(filters.replace("'", '"'))  # Convert single quotes to double quotes for JSON parsing
         
-    Logger.info("# CLI parameters:")
-    Logger.info(f"## Water depth file: {water}")
-    Logger.info(f"## Buildings file: {building}")
-    Logger.info(f"## Water depth threshold: {wd_thresh}")
-    Logger.info(f"## Bounding box: {bbox}")
-    Logger.info(f"## Output file: {out}")
-    Logger.info(f"## Target SRS: {t_srs}")
-    Logger.info(f"## Provider: {provider}")
-    Logger.info(f"## Feature filters: {filters}")
-    Logger.info(f"## Only flood: {only_flood}")
-    Logger.info(f"## Stats: {stats}")
-    Logger.info(f"## Summary: {summary}")
+    Logger.debug("# CLI parameters:")
+    Logger.debug(f"## Water depth file: {water}")
+    Logger.debug(f"## Buildings file: {building}")
+    Logger.debug(f"## Water depth threshold: {wd_thresh}")
+    Logger.debug(f"## Bounding box: {bbox}")
+    Logger.debug(f"## Output file: {out}")
+    Logger.debug(f"## Target SRS: {t_srs}")
+    Logger.debug(f"## Provider: {provider}")
+    Logger.debug(f"## Feature filters: {filters}")
+    Logger.debug(f"## Only flood: {only_flood}")
+    Logger.debug(f"## Stats: {stats}")
+    Logger.debug(f"## Summary: {summary}")
     
     result = compute_flood(
         water = water,
@@ -261,8 +282,15 @@ def main(
         filters = filters,
         only_flood = only_flood,
         stats = stats,
-        summary = summary
+        summary = summary,
+        
+        # Additional parameters for CLI
+        version = version,
+        debug = debug,
+        verbose = verbose
     )
     
     time_end = time.time()
-    Logger.info(f"# Flooded buildings analysis completed in {time_end - time_start:.2f} seconds. Returned {len(result['features'])} features.")
+    
+    if result is not None:
+        Logger.debug(f"# Flooded buildings analysis completed in {time_end - time_start:.2f} seconds. Returned {len(result['features'])} features.")

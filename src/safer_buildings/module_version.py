@@ -28,7 +28,7 @@ def get_version():
     """
     get_version
     """
-    package_name = "safer_buildings"
+    package_name = "safer-buildings"
     try:
         return version(package_name)
     except PackageNotFoundError:
