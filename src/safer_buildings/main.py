@@ -168,7 +168,7 @@ def compute_flood(
     # DOC: 9 — Save results to file
     Logger.info(f'# Saving results to {out} ...')
     if out.startswith('s3://'):
-        out_tmp = f"{_utils.juststem(out)}.geojson"
+        out_tmp = _utils.temp_filename(ext='geojson', prefix='safer-buildings_out')
         with open(out_tmp, 'w') as f:
             json.dump(feature_collection, f, indent=2)
         module_s3.s3_upload(filename = out_tmp, uri = out)    

@@ -40,7 +40,7 @@ def validate_args(
     if not waterdepth_filename.startswith('s3://') and os.path.isfile(waterdepth_filename) is False:
         raise FileNotFoundError(f"Water depth file not found: {waterdepth_filename}")
     if waterdepth_filename.startswith('s3://'):
-        waterdepth_filename_tmp = _utils.justfname(waterdepth_filename)
+        waterdepth_filename_tmp = _utils.temp_filename(ext = _utils.justext(waterdepth_filename), prefix='safer-buildings_waterdepth')
         module_s3.s3_download(uri = waterdepth_filename, fileout = waterdepth_filename_tmp)
         waterdepth_filename = waterdepth_filename_tmp
     
@@ -50,7 +50,7 @@ def validate_args(
         if not buildings_filename.startswith('s3://') and os.path.isfile(buildings_filename) is False:
             raise FileNotFoundError(f"Buildings file not found: {buildings_filename}")
         if buildings_filename.startswith('s3://'):
-            buildings_filename_tmp = _utils.justfname(buildings_filename)
+            buildings_filename_tmp = _utils.temp_filename(ext = _utils.justext(buildings_filename), prefix='safer-buildings_buildings')
             module_s3.s3_download(uri = buildings_filename, fileout = buildings_filename_tmp)
             buildings_filename = buildings_filename_tmp
         

@@ -52,7 +52,8 @@ def retrieve_overture(bbox):
     provider_buildings = leafmap.get_overture_data(
         overture_type = "building", 
         bbox = bbox.to_crs(epsg=4326).total_bounds.tolist(), 
-        columns = columns
+        columns = columns,
+        output = _utils.temp_filename(ext='geojson', prefix='safer-buildings_overture-buildings')
     )
     return provider_buildings
 
@@ -141,7 +142,7 @@ def retrieve_rer_rest(provider, bbox):
     provider_buildings = overture_intersection(provider_buildings)
     provider_buildings = buffer_points(provider_buildings, buffer_meters=_consts._RER_BUILDING_POINTS_BUFFER_M)
     
-    buildings_filename = _utils.temp_filename(ext='shp', prefix=f"{provider.replace('/','-')}_buildings")
+    buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
 
     return provider_buildings

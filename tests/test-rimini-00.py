@@ -19,7 +19,7 @@ class Test(unittest.TestCase):
         args = {
             'water':        "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/rimini-wd.tif",
             'building':    "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson",
-            'out':          "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/rimini-wd-buildings.geojson",
+            'out':          "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/test-rimini-wd-00-output-00.geojson",
             'provider':     "RER-REST/1",
             'summary':      True,
             
@@ -33,7 +33,7 @@ class Test(unittest.TestCase):
         
         fileout = module_s3.s3_download(
             uri = args['out'],
-            fileout = 'test-rimini-00-output.geojson',
+            fileout = 'test-rimini-01-output.geojson',
         )
 
         self.assertTrue(os.path.exists(fileout))    # TODO: We should check its content.
