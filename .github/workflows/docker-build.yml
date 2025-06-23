@@ -10,7 +10,7 @@ on:
         default: "v1.0.1-manually-triggered.1"
   push:
     tags: 
-      - "dev-v*"
+      - "v*"
 
 jobs:
   build-application:
@@ -48,22 +48,22 @@ jobs:
         echo "Building Docker image with tag: $TAG"
         docker build  -t $ECR_REPO:${GITHUB_SHA::8} .
 
-    - name: Test Docker Image
-      env:
-        ECR_REPO: ${{ secrets.ECR_REPOSITORY_NAME }}
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        TAG: ${{ env.tag }}
-      run: |
-        echo "env.message: ${{ env.message }}"
-        if [[ "${{ env.message }}" == *"no-test"* ]]; then
-          echo "Skipping tests as per commit message."
-          exit 0
-        fi
-        echo "Testing Docker image with tag: $TAG"
-        # docker run --env AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --env AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY $ECR_REPO:${GITHUB_SHA::8} python tests/test_clsa.py
-        # docker run --env AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --env AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY $ECR_REPO:${GITHUB_SHA::8} python tests/test_rimini.py
-        # docker run --env AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --env AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY $ECR_REPO:${GITHUB_SHA::8} python tests/test_bologna.py
+    # - name: Test Docker Image
+    #   env:
+    #     ECR_REPO: ${{ secrets.ECR_REPOSITORY_NAME }}
+    #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     TAG: ${{ env.tag }}
+    #   run: |
+    #     echo "env.message: ${{ env.message }}"
+    #     if [[ "${{ env.message }}" == *"no-test"* ]]; then
+    #       echo "Skipping tests as per commit message."
+    #       exit 0
+    #     fi
+    #     echo "Testing Docker image with tag: $TAG"
+    #     # docker run --env AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --env AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY $ECR_REPO:${GITHUB_SHA::8} python tests/test_clsa.py
+    #     # docker run --env AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --env AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY $ECR_REPO:${GITHUB_SHA::8} python tests/test_rimini.py
+    #     # docker run --env AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --env AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY $ECR_REPO:${GITHUB_SHA::8} python tests/test_bologna.py
 
     - name: Tag and Push Docker Image
       env:
