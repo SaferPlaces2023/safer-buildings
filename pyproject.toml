@@ -24,7 +24,7 @@ dependencies = [
     "geopandas",
     "overturemaps>=0.14.0",
     "leafmap",
-    "boto3
+    "boto3"
 ]
 
 [project.optional-dependencies]
