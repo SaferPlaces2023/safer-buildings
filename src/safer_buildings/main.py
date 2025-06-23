@@ -186,7 +186,7 @@ def compute_flood(
 # DOC: Main function to run the flooded buildings analysis from command line
 
 @click.command()
-@click.option('--water', type=str, required=True, help='Path to the water depth raster file.')
+@click.option('--water', type=str, required=False, help='Path to the water depth raster file.')
 @click.option('--building','--buildings', type=str, default=None, help='Path to the buildings vector file.')
 @click.option('--wd_thresh', type=float, default=0.5, help='Water depth threshold for significant flooding (default: 0.5).')
 @click.option('--bbox', type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy). If None, the total bounds of the water depth raster will be used.')
