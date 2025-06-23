@@ -30,7 +30,7 @@ def process_cli_args(
     if version:
         Logger.setLevel(logging.INFO)  # Set to ERROR to avoid debug logs in version output
         Logger.info(f"safer-buildings v-{get_version()}")
-        sys.exit(0)
+        return {'version': get_version()}
         
     if debug:
         Logger.setLevel(logging.DEBUG)

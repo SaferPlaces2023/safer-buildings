@@ -69,14 +69,13 @@ def compute_flood(
         str: Path to the output file containing flooded buildings.
     """
     
-    try:
-        _utils.process_cli_args(
+    out_cli = _utils.process_cli_args(
             version = version,
             debug = debug,
             verbose = verbose
         )
-    except SystemExit as e:
-        return
+    if out_cli is not None:
+        return out_cli
     
 
     # DOC: 0 — Print GECO logo
@@ -246,11 +245,13 @@ def main(
     In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """
     
-    _utils.process_cli_args(
+    out_cli = _utils.process_cli_args(
         version = version,
         debug = debug,
         verbose = verbose
     )
+    if out_cli is not None:
+        sys.exit(0)
     
     Logger.debug("# Starting flooded buildings analysis ...")
     time_start = time.time()
