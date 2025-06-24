@@ -46,6 +46,7 @@ def compute_flood(
     only_flood: bool = False,
     stats: bool = False,
     summary: bool = False,
+    out_geojson: bool = False,
     
     # Additional parameters for CLI
     version: bool = False,
@@ -95,9 +96,10 @@ def compute_flood(
         feature_filters = filters,
         only_flood = only_flood,
         compute_stats = stats,
-        compute_summary = summary
+        compute_summary = summary,
+        out_geojson = out_geojson,
     )
-    waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary = validated_args
+    waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, out_geojson = validated_args
     
     
     # DOC: 2 — Gather buildings
@@ -193,7 +195,17 @@ def compute_flood(
     
     Logger.debug(f"## Results saved to {out}")
     
-    return feature_collection
+    
+    # DOC: 10 — Return output
+    output = feature_collection
+    if not out_geojson:
+        geojson_ref_key = 's3_uri' if out.startswith('s3://') else 'geojson_file'
+        output = {
+            geojson_ref_key: out,
+            'summary': output['metadata']['summary']
+        }
+    
+    return output
 
 
 
@@ -211,6 +223,7 @@ def compute_flood(
 @click.option('--only_flood', is_flag=True, required=False, default=False, help="Only return flooded buildings (default: False).")
 @click.option('--stats', is_flag=True, required=False, default=False, help="Compute water depth statistics for flooded buildings.")
 @click.option('--summary', is_flag=True, required=False, default=False, help="Returns an additional metadata field with aggregated statistic based on building type and class. If true, stats will be computed as well.")
+@click.option('--out_geojson', is_flag=True, required=False, default=False, help="Output results in GeoJSON format (default: False). By default is setted to False due to large dimensions. If true, output will be a GeoJSON feature collection, if False, it will be a json with GeoJSON reference and metadata.")
 
 @click.option("--version", is_flag=True, required=False, default=False,
               help="Print version.")
@@ -230,6 +243,8 @@ def main(
     only_flood,
     stats,
     summary,
+    out_geojson,
+    
     version,
     debug,
     verbose
@@ -271,6 +286,7 @@ def main(
     Logger.debug(f"## Only flood: {only_flood}")
     Logger.debug(f"## Stats: {stats}")
     Logger.debug(f"## Summary: {summary}")
+    Logger.debug(f'## Output GeoJSON: {out_geojson}')
     
     result = compute_flood(
         water = water,
@@ -284,6 +300,7 @@ def main(
         only_flood = only_flood,
         stats = stats,
         summary = summary,
+        out_geojson = out_geojson,
         
         # Additional parameters for CLI
         version = version,

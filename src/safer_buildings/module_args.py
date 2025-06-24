@@ -26,7 +26,8 @@ def validate_args(
     feature_filters: dict[str, dict] | None = None,
     only_flood: bool = False,
     compute_stats: bool = False,
-    compute_summary: bool = False
+    compute_summary: bool = False,
+    out_geojson: bool = False
 ) -> tuple[str, str | None, float, gpd.GeoDataFrame, str, str, str, list[dict[str, list]], bool, bool, bool]:
     
     """
@@ -146,6 +147,12 @@ def validate_args(
         compute_summary = False
     if type(compute_summary) is not bool:
         raise TypeError("compute_summary must be a boolean value.")
+    
+    if out_geojson is None:
+        out_geojson = False
+    if type(out_geojson) is not bool:
+        raise TypeError("out_geojson must be a boolean value.")
+    
         
     Logger.debug("## Input arguments validated successfully.")
     Logger.debug(f"### Water depth file: {waterdepth_filename}")
@@ -159,6 +166,7 @@ def validate_args(
     Logger.debug(f"### Only flood: {only_flood}")
     Logger.debug(f"### Compute stats: {compute_stats}")
     Logger.debug(f"### Compute summary: {compute_summary}")
+    Logger.debug(f"### Output GeoJSON: {out_geojson}")
         
-    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary
+    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, out_geojson
 
