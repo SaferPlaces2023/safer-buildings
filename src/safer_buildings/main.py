@@ -200,9 +200,10 @@ def compute_flood(
     output = feature_collection
     if not out_geojson:
         geojson_ref_key = 's3_uri' if out.startswith('s3://') else 'geojson_file'
+        summary_info = {'summary': output['metadata']['summary']} if compute_summary else dict()
         output = {
             geojson_ref_key: out,
-            'summary': output['metadata']['summary']
+            ** summary_info
         }
     
     return output
