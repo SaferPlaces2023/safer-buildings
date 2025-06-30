@@ -5,7 +5,6 @@ FROM 901702069075.dkr.ecr.us-east-1.amazonaws.com/docker-gdal
 
 COPY src /var/tmp/safer_buildings/src
 COPY pyproject.toml /var/tmp/safer_buildings/
-COPY .git /var/tmp/safer_buildings/.git
 WORKDIR /var/tmp/safer_buildings 
 RUN pip install .
 ADD tests /var/task/tests
