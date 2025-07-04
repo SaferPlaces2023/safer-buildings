@@ -66,6 +66,12 @@ def validate_args(
             raise FileNotFoundError(f"Buildings file not found: {buildings_filename}. Check buildings arguments ({_ARG_NAMES.BUILDINGS})")
         if buildings_filename.startswith('s3://'):
             buildings_filename_tmp = _utils.temp_filename(ext = _utils.justext(buildings_filename), prefix='safer-buildings_buildings')
+            if buildings_filename.endswith('.shp'):
+                add_ext = ['.shx', '.dbf', '.prj', '.cpg']
+                for ext in add_ext:
+                    dl_status = module_s3.s3_download(uri = buildings_filename.replace('.shp', ext), fileout=buildings_filename_tmp.replace('.shp', ext))
+                    if dl_status is None:
+                        raise FileNotFoundError(f"Failed to download buildings files from S3: {buildings_filename}. Check buildings arguments ({_ARG_NAMES.BUILDINGS})")
             dl_status = module_s3.s3_download(uri = buildings_filename, fileout = buildings_filename_tmp)
             if dl_status is None:
                 raise FileNotFoundError(f"Failed to download buildings file from S3: {buildings_filename}. Check buildings arguments ({_ARG_NAMES.BUILDINGS})")
@@ -113,8 +119,8 @@ def validate_args(
         
         
     if provider is None:
-        if buildings_filename is not None:
-            raise ValueError(f"A provider must be provided if buildings_filename is given. Check provider argument ({_ARG_NAMES.PROVIDER})")
+        if buildings_filename is None:
+            raise ValueError(f"A provider must be provided if buildings_filename is not given. Check provider argument ({_ARG_NAMES.PROVIDER}) or buildings argument ({_ARG_NAMES.BUILDINGS})")
         else:
             provider = 'OVERTURE'
     if type(provider) is not str:
@@ -164,6 +170,8 @@ def validate_args(
         compute_summary = False
     if type(compute_summary) is not bool:
         raise TypeError(f"summary must be a boolean value. Check summary argument ({_ARG_NAMES.SUMMARY})")
+    if compute_summary and provider is None:
+        raise ValueError(f"summary can only be computed if a provider is specified. Check summary argument ({_ARG_NAMES.SUMMARY}) and provider argument ({_ARG_NAMES.PROVIDER})")
     
     if out_geojson is None:
         out_geojson = False
