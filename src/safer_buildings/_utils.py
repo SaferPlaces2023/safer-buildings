@@ -34,7 +34,7 @@ def process_cli_args(
         
     if debug:
         Logger.setLevel(logging.DEBUG)
-    if verbose:
+    elif verbose:
         Logger.setLevel(logging.INFO)
     else:
         Logger.setLevel(logging.ERROR)
