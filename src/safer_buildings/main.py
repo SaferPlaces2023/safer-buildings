@@ -357,3 +357,5 @@ def main(
     
     if result is not None:
         Logger.debug(f"# Flooded buildings analysis completed in {time_end - time_start:.2f} seconds.")
+        
+    return result
