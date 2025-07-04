@@ -1,5 +1,5 @@
 from safer_buildings import parse_event
-from safer_buildings import compute_flood, main_function
+from safer_buildings import compute_flood as main_function
 
 
 # DOC: An example test input for directed project area:
