@@ -83,11 +83,11 @@ def compute_wd_stats(
     Logger.debug("## Extract sampling points from flood geometries ...")
     wd_res = np.array(waterdepth_ds.rio.resolution())
     wd_res = np.abs(wd_res / 1) 
-    buildings['flood_points'] = buildings.flood_geometry.apply(lambda fg: _utils.points_in_poly(fg, res=wd_res, poly_buffer=wd_res[0], flatten=True) if not fg.is_empty else np.nan)    
+    buildings['flood_coords'] = buildings.flood_geometry.apply(lambda fg: _utils.coords_in_poly(fg, res=wd_res, poly_buffer=wd_res[0]) if not fg.is_empty else np.nan)    
         
     Logger.debug("## Compute water depth values at flood points + descriptive statistics ...")
-    fpxs = buildings['flood_points'].apply(lambda pts: xr.DataArray(pts[:,0], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
-    fpys = buildings['flood_points'].apply(lambda pts: xr.DataArray(pts[:,1], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
+    fpxs = buildings['flood_coords'].apply(lambda pts: xr.DataArray(pts[:,0], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
+    fpys = buildings['flood_coords'].apply(lambda pts: xr.DataArray(pts[:,1], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
     flood_vals = [waterdepth_ds.sel(x=fpx, y=fpy, method='nearest').values if isinstance(fpx, xr.DataArray) else np.nan for fpx, fpy in zip(fpxs, fpys)]
     flood_stats = pd.Series(flood_vals).apply(lambda v: dict(pd.Series(v).describe()) if v is not np.nan else np.nan)
     

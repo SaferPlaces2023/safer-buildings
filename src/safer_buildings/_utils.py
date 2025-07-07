@@ -5,6 +5,7 @@ import datetime
 import tempfile
 
 import numpy as np
+import pandas as pd
 
 from osgeo import gdal, osr, ogr
 
@@ -153,19 +154,18 @@ def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     return gdf_rings
 
 
-def points_in_poly(poly, res, poly_buffer=None, flatten=False):
+def coords_in_poly(poly, res, poly_buffer=None):
     if poly_buffer is not None:
         poly = poly.buffer(poly_buffer)
     res_x, res_y = (res, res) if isinstance(res, (int, float)) else res
     minx, miny, maxx, maxy = poly.bounds
     x_vals = np.arange(minx-res_x, maxx+res_x, res_x)
     y_vals = np.arange(miny-res_y, maxy+res_y, res_y)
-    if flatten:
-        pts = gpd.GeoDataFrame(geometry=[Point(x, y) for x in x_vals for y in y_vals])
-        pts = pts[poly.contains(pts.geometry)].geometry.apply(lambda pt: np.array([pt.x, pt.y]))
-        pts = np.stack(pts.to_numpy()) if not pts.empty else np.array([])
-        return pts
-    return np.array([[[x,y] for x in x_vals if poly.contains(Point(x, y))] for y in y_vals[::-1]])
+    X, Y = np.meshgrid(x_vals, y_vals)
+    cartesian_product = pd.Series(map(Point, np.column_stack([X.ravel(), Y.ravel()])))
+    points = cartesian_product[poly.contains(cartesian_product)]
+    coords = np.stack([[p.x,p.y] for p in points])
+    return coords
     
 
 

@@ -164,7 +164,7 @@ def compute_flood(
             Logger.debug("## Summary statistics computed for flooded buildings.") 
         
         # DOC: 7.1 — Drop other geometry columns
-        filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_bounds', 'flood_geometry', 'flood_points'] if col in filtered_flooded_buildings.columns])
+        filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_bounds', 'flood_geometry', 'flood_coords'] if col in filtered_flooded_buildings.columns])
         
         # DOC: 8 — Return results
         Logger.debug('# Preparing geojson output results ...')
