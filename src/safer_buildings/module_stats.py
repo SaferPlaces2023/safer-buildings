@@ -1,6 +1,11 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from shapely.geometry import MultiPolygon
+from shapely import intersects, intersection
+
+import xarray as xr
+import rioxarray
 
 from osgeo import gdal
 
@@ -48,33 +53,49 @@ def filter_by_feature(
 def compute_wd_stats(
     waterdepth_filename: str,
     waterdepth_mask: gpd.GeoDataFrame,
+    waterdepth_thresh: float,
     buildings: gpd.GeoDataFrame
 ) -> gpd.GeoDataFrame:
     """
     Compute statistics on water depth around flooded buildings.
     """
+
+    # DOC: WD values as netcdf so we can access by coord indexing + filter on thresh
+    waterdepth_ds = rioxarray.open_rasterio(waterdepth_filename).sel(band=1)
+    waterdepth_ds = xr.where(waterdepth_ds > waterdepth_thresh, waterdepth_ds, np.nan).rio.write_crs(waterdepth_ds.rio.crs)
     
-    waterdepth_raster = gdal.Open(waterdepth_filename)
-
-    def building_wd_stats(building_flood_area):
-        flood_area_values = _utils.raster_sample_area(waterdepth_raster, building_flood_area)
-        flood_area_stats = dict(pd.Series(flood_area_values).describe())
-        return flood_area_stats 
+    if 'ring_geometry' not in buildings.columns:
+        Logger.debug(f"## Compute ring geometries around buildings (radius: {_consts._RING_BUFFER_M} meters) ...")
+        radius_buffer = _consts._RING_BUFFER_M * (1 if _utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
+        buildings_rings = _utils.get_polygon_ring(buildings, radius_buffer)
+        buildings['ring_geometry'] = buildings_rings.geometry
         
-    radius_buffer = _consts._RING_BUFFER_M * (1 if _utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
-    buildings_circles = buildings.buffer(radius_buffer)
-    buildings_rings = buildings_circles.difference(buildings.geometry)
-    builidngs_flood_area = buildings_rings.intersection(waterdepth_mask.geometry.iloc[0])
-
-    flood_buildings_stats = [building_wd_stats(building_flood_area) if is_flooded else None for building_flood_area,is_flooded in zip(builidngs_flood_area, buildings['is_flooded'])]
-
-    buildings['flood_wd_min'] = [stats['min'] if stats else None for stats in flood_buildings_stats]
-    buildings['flood_wd_25perc'] = [stats['25%'] if stats else None for stats in flood_buildings_stats]
-    buildings['flood_wd_mean'] = [stats['mean'] if stats else None for stats in flood_buildings_stats]
-    buildings['flood_wd_median'] = [stats['50%'] if stats else None for stats in flood_buildings_stats]
-    buildings['flood_wd_75perc'] = [stats['75%'] if stats else None for stats in flood_buildings_stats]
-    buildings['flood_wd_max'] = [stats['max'] if stats else None for stats in flood_buildings_stats]
-
+    if 'flood_bounds' not in buildings.columns:
+        buildings['flood_bounds'] = buildings.ring_geometry.apply(lambda rg: MultiPolygon(polygons=waterdepth_mask.cx[rg.bounds[0]:rg.bounds[2], rg.bounds[1]:rg.bounds[3]].geometry.tolist()))
+    
+    if 'is_flooded' not in buildings.columns:
+        Logger.debug("## Get buildings with intersection between ring geometries and water depth polygons ...")
+        buildings['is_flooded'] = buildings.apply(lambda b: intersects(b.ring_geometry, b.flood_bounds) if not b.flood_bounds.is_empty else False, axis=1)
+    
+    Logger.debug("## Compute intersection areas between building ring geometries and flood areas ...")    
+    buildings['flood_geometry'] = buildings.apply(lambda b: intersection(b.ring_geometry, b.flood_bounds) if b.is_flooded else b.flood_bounds, axis=1)
+    
+    Logger.debug("## Extract sampling points from flood geometries ...")
+    wd_res = np.array(waterdepth_ds.rio.resolution())
+    wd_res = np.abs(wd_res / 1) 
+    buildings['flood_points'] = buildings.flood_geometry.apply(lambda fg: _utils.points_in_poly(fg, res=wd_res, poly_buffer=wd_res[0], flatten=True) if not fg.is_empty else np.nan)    
+        
+    Logger.debug("## Compute water depth values at flood points + descriptive statistics ...")
+    flood_vals = buildings.flood_points.apply(lambda pts: [waterdepth_ds.sel(x=pt[0], y=pt[1], method='nearest').item() for pt in pts] if isinstance(pts, np.ndarray) and pts.size > 0 else np.nan) 
+    flood_stats = flood_vals.apply(lambda v: dict(pd.Series(v).describe() )if isinstance(v, list) else np.nan)
+    
+    buildings['flood_wd_min'] = flood_stats.apply(lambda s: s['min'] if isinstance(s, dict) else np.nan)
+    buildings['flood_wd_25perc'] = flood_stats.apply(lambda s: s['25%'] if isinstance(s, dict) else np.nan)
+    buildings['flood_wd_mean'] = flood_stats.apply(lambda s: s['mean'] if isinstance(s, dict) else np.nan)
+    buildings['flood_wd_median'] = flood_stats.apply(lambda s: s['50%'] if isinstance(s, dict) else np.nan)
+    buildings['flood_wd_75perc'] = flood_stats.apply(lambda s: s['75%'] if isinstance(s, dict) else np.nan)
+    buildings['flood_wd_max'] = flood_stats.apply(lambda s: s['max'] if isinstance(s, dict) else np.nan)
+    
     return buildings
 
 
@@ -115,7 +136,10 @@ def compute_wd_summary(
     elif provider.startswith('RER-REST'):
         class_column = 'rer_class'
     else:
-        raise ValueError(f"Provider '{provider}' is not supported for summary computation. Available providers are: {_consts.PROVIDERS}.")     # DOC: Should never happen, but just in case.
+        return summary
+        # TODO: add --summary <attribute> or --summary <attribute1,attribute2,...> to allow summary by other attributes >>> HOW TO: (group by *attrs and add class_columns = '__'.join(attrs) to the summary, then continue as usual)
+        # raise ValueError(f"Provider '{provider}' is not supported for summary computation. Available providers are: {_consts.PROVIDERS}.")     # DOC: Should never happen, but just in case.
+    
     buildings[class_column] = buildings[class_column].fillna('other')
     summary['classes'] = {
         class_name: base_summary(class_gdf)

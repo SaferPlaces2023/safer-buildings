@@ -121,6 +121,8 @@ def compute_flood(
             mask_builder=lambda wd: wd > wd_thresh,    # Significant water depth threshold
             bbox=bbox
         )
+        # DOC: 3.1 — Explode 1 MultiPolygon into Polygons
+        waterdepth_polygonized = gpd.GeoDataFrame({'geometry': list(waterdepth_polygonized.geometry.iloc[0].geoms)}, crs = waterdepth_polygonized.crs)
         
         
         # DOC: 4 — Intersect buildings with water depth
@@ -147,6 +149,7 @@ def compute_flood(
             filtered_flooded_buildings = module_stats.compute_wd_stats(
                 waterdepth_filename=waterdepth_filename,
                 waterdepth_mask=waterdepth_polygonized,
+                waterdepth_thresh=wd_thresh,
                 buildings=filtered_flooded_buildings
             )
             Logger.debug("## Water depth stats computed for flooded buildings.")
@@ -162,6 +165,9 @@ def compute_flood(
             )
             Logger.debug("## Summary statistics computed for flooded buildings.") 
         
+        
+        filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_bounds', 'flood_geometry', 'flood_points'] if col in filtered_flooded_buildings.columns])
+    
             
         
         # DOC: 8 — Return results
@@ -246,7 +252,7 @@ def compute_flood(
 )
 @click.option(
     *_ARG_NAMES.T_SRS,
-    type=str, default=None, help='Target spatial reference system (EPSG code). If None, CRS of water depth raster will be used.'
+    type=str, default=None, help='Target spatial reference system (EPSG code). If None, CRS of building will be used if file is provided otherwise CRS of water depth raster will be used.'
 )
 @click.option(
     *_ARG_NAMES.PROVIDER,
@@ -301,6 +307,7 @@ def main(
     1. safer-buildings --water tests\rimini-wd.tif --provider OVERTURE --filters "[{'subtype':'education', 'class': ['kindergarten','school']}, {'class':'parking'}]" --only_flood --stats
     2. safer-buildings --water tests\rimini-wd.tif --provider RER-REST/28/31/40 --filters "[{'ORDINE_NORMALIZZATO': ['Scuola primaria', 'Nido d\'infanzia']}, {'ISTITUZIONE_SCOLASTICA_RIF': 'IC ALIGHIERI'}]" --summary
     3. safer-buildings --water s3://saferplaces.co/Directed/process_out/SaferBuildingsService/rimini-wd.tif --buildings s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson --out s3://saferplaces.co/Directed/process_out/SaferBuildingsService/rimini-wd-buildings.geojson --provider RER-REST --summary
+    4. safer-buildings --water s3://saferplaces.co/api_data/vimercate/waterdepths/rain-100/water_rain-100.tif --buildings s3://saferplaces.co/api_data/vimercate/building.shp --out s3://saferplaces.co/api_data/vimercate/flooded-building.geojson --provider OVERTURE --summary
     
     In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is (subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking']).
     """

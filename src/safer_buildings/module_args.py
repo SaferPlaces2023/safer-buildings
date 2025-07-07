@@ -115,7 +115,10 @@ def validate_args(
         if valid != 0:
             raise ValueError(f"Invalid EPSG code: {epsg_code}. Check target SRS argument ({_ARG_NAMES.T_SRS})")
     else:
-        t_srs = _utils.get_raster_crs(waterdepth_filename)
+        if buildings_filename is not None:
+            t_srs = _utils.get_geodataframe_crs(gpd.read_file(buildings_filename))
+        else:
+            t_srs = _utils.get_raster_crs(waterdepth_filename)
         
         
     if provider is None:

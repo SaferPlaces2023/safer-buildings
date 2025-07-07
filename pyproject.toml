@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "safer-buildings"
-version = "1.0.13"
+version = "1.0.14"
 description = "Little procedures to get buildings at risk of flooding from a flood map"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -24,7 +24,9 @@ dependencies = [
     "geopandas",
     "overturemaps>=0.14.0",
     "leafmap",
-    "boto3"
+    "boto3",
+    "xarray",
+    "rioxarray"
 ]
 
 [project.optional-dependencies]
