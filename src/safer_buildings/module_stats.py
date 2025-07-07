@@ -89,8 +89,7 @@ def compute_wd_stats(
     fpxs = buildings['flood_points'].apply(lambda pts: xr.DataArray(pts[:,0], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
     fpys = buildings['flood_points'].apply(lambda pts: xr.DataArray(pts[:,1], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
     flood_vals = [waterdepth_ds.sel(x=fpx, y=fpy, method='nearest').values if isinstance(fpx, xr.DataArray) else np.nan for fpx, fpy in zip(fpxs, fpys)]
-    # flood_vals = buildings.flood_points.apply(lambda pts: [waterdepth_ds.sel(x=pt[0], y=pt[1], method='nearest').item() for pt in pts] if isinstance(pts, np.ndarray) and pts.size > 0 else np.nan) 
-    flood_stats = pd.Series(flood_vals).apply(lambda v: dict(pd.Series(v).describe() )if isinstance(v, list) else np.nan)
+    flood_stats = pd.Series(flood_vals).apply(lambda v: dict(pd.Series(v).describe()) if v is not np.nan else np.nan)
     
     buildings['flood_wd_min'] = flood_stats.apply(lambda s: s['min'] if isinstance(s, dict) else np.nan)
     buildings['flood_wd_25perc'] = flood_stats.apply(lambda s: s['25%'] if isinstance(s, dict) else np.nan)
