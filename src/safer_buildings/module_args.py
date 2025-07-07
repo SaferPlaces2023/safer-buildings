@@ -24,6 +24,7 @@ class _ARG_NAMES():
     ONLY_FLOOD = ['--only_flood']
     STATS = ['--stats']
     SUMMARY = ['--summary']
+    SUMMARY_ON = ['--summary_on']
     OUT_GEOJSON = ['--out_geojson']
 
 
@@ -39,6 +40,7 @@ def validate_args(
     only_flood: bool = False,
     compute_stats: bool = False,
     compute_summary: bool = False,
+    summary_on: str | list[str] | None = None,
     out_geojson: bool = False
 ) -> tuple[str, str | None, float, gpd.GeoDataFrame, str, str, str, list[dict[str, list]], bool, bool, bool]:
     
@@ -173,6 +175,15 @@ def validate_args(
     if type(compute_summary) is not bool:
         raise TypeError(f"summary must be a boolean value. Check summary argument ({_ARG_NAMES.SUMMARY})")
     
+    if summary_on is not None:
+        if isinstance(summary_on, str):
+            summary_on = [summary_on]
+        if not isinstance(summary_on, list):
+            raise TypeError(f"summary_on must be a string or a list of strings. Check summary_on argument ({_ARG_NAMES.SUMMARY_ON})")
+        if not all([isinstance(item, str) for item in summary_on]):
+            raise TypeError(f"All items in summary_on must be strings. Check summary_on argument ({_ARG_NAMES.SUMMARY_ON})")
+        compute_summary = True
+    
     if out_geojson is None:
         out_geojson = False
     if type(out_geojson) is not bool:
@@ -191,7 +202,8 @@ def validate_args(
     Logger.debug(f"### Only flood: {only_flood}")
     Logger.debug(f"### Compute stats: {compute_stats}")
     Logger.debug(f"### Compute summary: {compute_summary}")
+    Logger.debug(f"### Summary on: {summary_on}")
     Logger.debug(f"### Output GeoJSON: {out_geojson}")
         
-    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, out_geojson
+    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, out_geojson
 

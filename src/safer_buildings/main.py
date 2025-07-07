@@ -30,7 +30,6 @@ load_dotenv()
 
 
 # TODO: --list-providers → shows detailed description of providers
-# TODO: --summary → add metadata with aggregate stats ( n buildings, n flooded buildings, min,avg,max wd for each category (provider dependend) of buildings)
 
 
 # DOC: Main function to compute flooded buildings
@@ -47,6 +46,7 @@ def compute_flood(
     only_flood: bool = False,
     stats: bool = False,
     summary: bool = False,
+    summary_on: str | list[str] | None = None,
     out_geojson: bool = False,
     
     # Additional parameters for CLI
@@ -99,9 +99,10 @@ def compute_flood(
             only_flood = only_flood,
             compute_stats = stats,
             compute_summary = summary,
+            summary_on = summary_on,
             out_geojson = out_geojson,
         )
-        waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, out_geojson = validated_args
+        waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, out_geojson = validated_args
         
         
         # DOC: 2 — Gather buildings
@@ -158,6 +159,7 @@ def compute_flood(
             Logger.debug('# Computing summary statistics for flooded buildings ...')
             summary_stats = module_stats.compute_wd_summary(
                 buildings=filtered_flooded_buildings,
+                summary_on=summary_on,
                 provider=provider,
                 include_stats=compute_stats,
             )
@@ -240,6 +242,7 @@ def compute_flood(
 )
 @click.option(
     *_ARG_NAMES.BBOX,
+    callback=lambda ctx, param, value: tuple(value) if value else None,
     type=float, nargs=4, default=None, help='Bounding box (minx, miny, maxx, maxy). If None, the total bounds of the water depth raster will be used.'
 )
 @click.option(
@@ -271,6 +274,11 @@ def compute_flood(
     is_flag=True, required=False, default=False, help="Returns an additional metadata field with aggregated statistic based on building type and class. If true, stats will be computed as well."
 )
 @click.option(
+    *_ARG_NAMES.SUMMARY_ON,
+    callback=lambda ctx, param, value: value.split(',') if value is not None else None,
+    required=False, default=None, help="Column(s) (separated by commas — no spaces allowed) to compute summary statistics on. If None, summary will be computed on all flooded buildings. If not provided and provider is OVERTURE, 'subtype' will be used, if provider is RER-REST then 'rer_class' will be used."
+)
+@click.option(
     *_ARG_NAMES.OUT_GEOJSON,
     is_flag=True, required=False, default=False, help="Output results in GeoJSON format (default: False). By default is setted to False due to large dimensions. If true, output will be a GeoJSON feature collection, if False, it will be a json with GeoJSON reference and metadata."
 )
@@ -290,6 +298,7 @@ def main(
     only_flood,
     stats,
     summary,
+    summary_on,
     out_geojson,
     
     version,
@@ -334,13 +343,14 @@ def main(
     Logger.debug(f"## Only flood: {only_flood}")
     Logger.debug(f"## Stats: {stats}")
     Logger.debug(f"## Summary: {summary}")
+    Logger.debug(f"## Summary on: {summary_on}")
     Logger.debug(f'## Output GeoJSON: {out_geojson}')
     
     result = compute_flood(
         water = water,
         building = building,
         wd_thresh = wd_thresh,
-        bbox = tuple(bbox) if bbox else None,
+        bbox = bbox,
         out = out,
         t_srs = t_srs,
         provider = provider,
@@ -348,6 +358,7 @@ def main(
         only_flood = only_flood,
         stats = stats,
         summary = summary,
+        summary_on = summary_on,
         out_geojson = out_geojson,
         
         # Additional parameters for CLI

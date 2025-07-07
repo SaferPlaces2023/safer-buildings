@@ -103,6 +103,7 @@ def compute_wd_stats(
 
 def compute_wd_summary(
     buildings: gpd.GeoDataFrame,
+    summary_on: list[str] | None,
     provider: str,
     include_stats: bool
 ) -> dict:
@@ -133,7 +134,19 @@ def compute_wd_summary(
     summary['overall'] = base_summary(buildings)
     
     class_column = None
-    if provider is not None:
+    if summary_on is not None:
+        discarded_attrs = set(buildings.columns) - set(summary_on)
+        if len(discarded_attrs) > 0:
+            Logger.warning(f"## The following attributes will discarded from summary computation: {', '.join(discarded_attrs)}.")
+        summary_on = [attr for attr in summary_on if attr in buildings.columns]
+        if len(summary_on) == 0:
+            Logger.warning("## No valid attributes provided for summary computation. Summary will be computed for all flooded buildings.")
+            return summary
+        else:
+            buildings['_summary_category'] = buildings[summary_on].apply(lambda row: [v for v in row.values if not pd.isna(v)], axis=1)
+            buildings['_summary_category'] = buildings['_summary_category'].apply(lambda x: ' / '.join(x) if isinstance(x, list) and len(x) > 0 else np.nan)
+            class_column = '_summary_category'
+    elif provider is not None:
         if provider == 'OVERTURE':
             class_column = 'subtype'
         elif provider.startswith('RER-REST'):
@@ -142,8 +155,6 @@ def compute_wd_summary(
             return summary
     else:
         return summary
-        # TODO: add --summary <attribute> or --summary <attribute1,attribute2,...> to allow summary by other attributes >>> HOW TO: (group by *attrs and add class_columns = '__'.join(attrs) to the summary, then continue as usual)
-        # raise ValueError(f"Provider '{provider}' is not supported for summary computation. Available providers are: {_consts.PROVIDERS}.")     # DOC: Should never happen, but just in case.
     
     buildings[class_column] = buildings[class_column].fillna('other')
     summary['classes'] = {
