@@ -239,10 +239,11 @@ def polygonize_raster_valid_data(raster_filename, band=1, mask_builder=None, bbo
     # Unisci i poligoni in una singola geometria
     valid_area = gpd.GeoSeries(valid_data_polygons).union_all()
     gdf = gpd.GeoDataFrame({'geometry':[valid_area]}, crs=get_raster_crs(raster_filename))
+    gdf = gpd.GeoDataFrame({'geometry': list(gdf.geometry.iloc[0].geoms)}, crs = gdf.crs) # Explode MultiPolygon into Polygons
     
     if bbox is not None:
-        bbox = ensure_geodataframe_crs(bbox, get_raster_crs(raster_filename))
-        gdf = gpd.overlay(gdf, bbox, how='intersection')
+        bbox = ensure_geodataframe_crs(bbox, get_raster_crs(raster_filename)).total_bounds
+        gdf = gdf.cx[bbox[0]:bbox[2], bbox[1]:bbox[3]]
     
     return gdf
 

@@ -121,8 +121,6 @@ def compute_flood(
             mask_builder=lambda wd: wd > wd_thresh,    # Significant water depth threshold
             bbox=bbox
         )
-        # DOC: 3.1 — Explode 1 MultiPolygon into Polygons
-        waterdepth_polygonized = gpd.GeoDataFrame({'geometry': list(waterdepth_polygonized.geometry.iloc[0].geoms)}, crs = waterdepth_polygonized.crs)
         
         
         # DOC: 4 — Intersect buildings with water depth
@@ -165,10 +163,8 @@ def compute_flood(
             )
             Logger.debug("## Summary statistics computed for flooded buildings.") 
         
-        
+        # DOC: 7.1 — Drop other geometry columns
         filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_bounds', 'flood_geometry', 'flood_points'] if col in filtered_flooded_buildings.columns])
-    
-            
         
         # DOC: 8 — Return results
         Logger.debug('# Preparing geojson output results ...')

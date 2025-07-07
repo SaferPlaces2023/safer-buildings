@@ -131,10 +131,13 @@ def compute_wd_summary(
     summary['overall'] = base_summary(buildings)
     
     class_column = None
-    if provider == 'OVERTURE':
-        class_column = 'subtype'
-    elif provider.startswith('RER-REST'):
-        class_column = 'rer_class'
+    if provider is not None:
+        if provider == 'OVERTURE':
+            class_column = 'subtype'
+        elif provider.startswith('RER-REST'):
+            class_column = 'rer_class'
+        else:
+            return summary
     else:
         return summary
         # TODO: add --summary <attribute> or --summary <attribute1,attribute2,...> to allow summary by other attributes >>> HOW TO: (group by *attrs and add class_columns = '__'.join(attrs) to the summary, then continue as usual)

@@ -28,6 +28,7 @@ _RER_BUILDING_POINTS_BUFFER_M = 20
 
 _PROVIDERS = (
     'OVERTURE',
+    'RER-REST',
     * RegioneEmiliaRomagnaLayers.provider_name.to_list(),
 )
 

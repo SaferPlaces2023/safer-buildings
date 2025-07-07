@@ -124,21 +124,20 @@ def validate_args(
     if provider is None:
         if buildings_filename is None:
             raise ValueError(f"A provider must be provided if buildings_filename is not given. Check provider argument ({_ARG_NAMES.PROVIDER}) or buildings argument ({_ARG_NAMES.BUILDINGS})")
-        else:
-            provider = 'OVERTURE'
-    if type(provider) is not str:
-        raise TypeError("provider must be a string")
-    if provider.startswith('RER-REST'):
-        if provider != 'RER-REST':
-            if len(provider.split('/')) < 2:
-                raise ValueError(f"RER-REST provider must be 'RER-REST' or in the format 'RER-REST/<service_id>'. At least one service_id must be provided. MULTIPLE service_ids can be specified by '/' separated list, e.g. 'RER-REST/30/31/32'. Check provider argument ({_ARG_NAMES.PROVIDER})")
-            service_ids = provider.split('/')[1:]
-            for service_id in service_ids:
-                provider_service = f'RER-REST/{service_id}'
-                if provider_service not in _consts._PROVIDERS:
-                    raise ValueError(f"Invalid provider: {provider_service}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
-    elif provider not in _consts._PROVIDERS:
-        raise ValueError(f"Invalid provider: {provider}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
+    else:
+        if type(provider) is not str:
+            raise TypeError("provider must be a string")
+        if provider.startswith('RER-REST'):
+            if provider != 'RER-REST':
+                if len(provider.split('/')) < 2:
+                    raise ValueError(f"RER-REST provider must be 'RER-REST' or in the format 'RER-REST/<service_id>'. At least one service_id must be provided. MULTIPLE service_ids can be specified by '/' separated list, e.g. 'RER-REST/30/31/32'. Check provider argument ({_ARG_NAMES.PROVIDER})")
+                service_ids = provider.split('/')[1:]
+                for service_id in service_ids:
+                    provider_service = f'RER-REST/{service_id}'
+                    if provider_service not in _consts._PROVIDERS:
+                        raise ValueError(f"Invalid provider: {provider_service}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
+        elif provider not in _consts._PROVIDERS:
+            raise ValueError(f"Invalid provider: {provider}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
     
     
     if feature_filters is not None:
@@ -173,8 +172,6 @@ def validate_args(
         compute_summary = False
     if type(compute_summary) is not bool:
         raise TypeError(f"summary must be a boolean value. Check summary argument ({_ARG_NAMES.SUMMARY})")
-    if compute_summary and provider is None:
-        raise ValueError(f"summary can only be computed if a provider is specified. Check summary argument ({_ARG_NAMES.SUMMARY}) and provider argument ({_ARG_NAMES.PROVIDER})")
     
     if out_geojson is None:
         out_geojson = False
