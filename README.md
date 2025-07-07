@@ -24,3 +24,25 @@ Little procedures to get buildings at risk of flooding from a flood map.
 3. `safer-buildings --water s3://saferplaces.co/Directed/process_out/SaferBuildingsService/rimini-wd.tif --buildings s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson --out s3://saferplaces.co/Directed/process_out/SaferBuildingsService/rimini-wd-buildings.geojson --provider RER-REST/1 --summary`
 
 In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is `(subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking'])`.
+
+### Parameters doc: 
+> **bold arguments** are used as input state in AWS Lambda:
+
+| **Argument**                      | **Description**                                                                                                                                         |
+|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`--water`**, `--waterdepth`, `--wd`, `--water_filename` `TEXT` | Path to the water depth raster file.                                                                                                   |
+| **`--building`**, `--buildings`, `--buildings_filename` `TEXT`   | Path to the buildings vector file.                                                                                                     |
+| **`--wd_thresh`**, `--thresh` `FLOAT`      | Water depth threshold for significant flooding (default: `0.5`).                                                                     |
+| **`--bbox`** `FLOAT...`                    | Bounding box (`minx`, `miny`, `maxx`, `maxy`). If None, the total bounds of the water depth raster will be used.                     |
+| **`--out`** `TEXT`                         | Output path for the results.                                                                                                           |
+| **`--t_srs`** `TEXT`                       | Target spatial reference system (EPSG code). If None, CRS of building will be used if provided, otherwise CRS of water depth raster. |
+| **`--provider`** `TEXT`                    | Building data provider (one of `OVERTURE`, `RER-REST/*`).                                                                              |
+| **`--filters`** `TEXT`                     | Filters for provider features in JSON format.                                                                                         |
+| **`--only_flood`**                       | Only return flooded buildings (default: `False`).                                                                                      |
+| **`--stats`**                            | Compute water depth statistics for flooded buildings.                                                                                 |
+| **`--summary`**                          | Add aggregated statistics metadata based on building type and class. Implies `--stats`.                                               |
+| **`--out_geojson`**                      | Output results in GeoJSON format (default: `False`). If `True`, output will be a GeoJSON feature collection, otherwise a JSON with references. |
+| **`--version`**, `-v`                    | Print version.                                                                                                                         |
+| **`--debug`**                            | Enable debug mode.                                                                                                                     |
+| **`--verbose`**                          | Enable verbose mode.                                                                                                                   |
+| `--help`                             | Show this message and exit.                                                                                                            |
