@@ -40,7 +40,8 @@ In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE pro
 | **`--filters`** `TEXT`                     | Filters for provider features in JSON format.                                                                                         |
 | **`--only_flood`**                       | Only return flooded buildings (default: `False`).                                                                                      |
 | **`--stats`**                            | Compute water depth statistics for flooded buildings.                                                                                 |
-| **`--summary`**                          | Add aggregated statistics metadata based on building type and class. Implies `--stats`.                                               |
+| **`--summary`**                          | Add aggregated statistics metadata based on building type and class.                                               |
+| **`--summary_on`**                          | Column(s) _(separated by commas – no spaces allowed)_ to compute summary statistics on. If `None`, summary will be computed on all flooded buildings. If not provided and provider is `OVERTURE`, `'subtype'` will be used, if provider is `RER-REST` then `'rer_class'` will be used.                                               |
 | **`--out_geojson`**                      | Output results in GeoJSON format (default: `False`). If `True`, output will be a GeoJSON feature collection, otherwise a JSON with references. |
 | **`--version`**, `-v`                    | Print version.                                                                                                                         |
 | **`--debug`**                            | Enable debug mode.                                                                                                                     |
