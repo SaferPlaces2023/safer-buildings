@@ -26,7 +26,7 @@ Little procedures to get buildings at risk of flooding from a flood map.
 In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE provider is used, and buildings are filtered is `(subtype in ['education'] AND class in ['kindergarten', 'school']) OR (class in ['parking'])`.
 
 ### Parameters doc: 
-> **bold arguments** are used as input state in AWS Lambda.
+> **bold arguments** are used as input state in AWS Lambda. <br>
 > `TYPE ...` arguments need to be expressed as `list[type]` in AWS Lambda.
 
 | **Argument**                      | **Description**                                                                                                                                         |
