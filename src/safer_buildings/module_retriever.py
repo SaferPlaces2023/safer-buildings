@@ -1,3 +1,4 @@
+import io
 import requests
 import pandas as pd
 
@@ -38,7 +39,9 @@ def retrieve_buildings(
         if provider == 'OVERTURE':
             provider_buildings = retrieve_overture(bbox)
         elif provider.startswith('RER-REST'):
-            provider_buildings = retrieve_rer_rest(provider, bbox)      
+            provider_buildings = retrieve_rer_rest(provider, bbox)     
+        elif provider.startswith('VENEZIA-WFS'):
+            provider_buildings = retrieve_venezia_wfs(provider, bbox) 
         else:
             raise ValueError(f"Provider '{provider}' is not supported. Available providers are: {_consts._PROVIDERS}.")
 
@@ -70,7 +73,7 @@ def retrieve_rer_rest(provider, bbox):
                 service_ids = list(set(service_ids))
                 
     def rest_service_retrieve(service_id):
-        url = f"https://servizigis.regione.emilia-romagna.it/geoags/rest/services/portale/saferplaces/MapServer/{service_id}/query"
+        url = f"{_consts._RER_REST_SERVICE_URL}/{service_id}/query"
         bbox4326 = bbox.to_crs("EPSG:4326").geometry.total_bounds
         params = {
             "geometry": ','.join([str(b) for b in bbox4326]),
@@ -118,8 +121,8 @@ def retrieve_rer_rest(provider, bbox):
             raise ValueError(f"Unsupported geometry type for service {service_id}: {_consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].geometryType}")
 
         rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
-        rest_gdf['rer_id'] = service_id
-        rest_gdf['rer_class'] = _consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].name.iloc[0]
+        rest_gdf['service_id'] = service_id
+        rest_gdf['service_class'] = _consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].name.iloc[0]
             
         return rest_gdf
     
@@ -135,13 +138,47 @@ def retrieve_rer_rest(provider, bbox):
     def buffer_points(gdf, buffer_meters = 20):
         gdf = gdf.to_crs("EPSG:7791")
         gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, LineString, MultiLineString] else g)
-        gdf = gdf.to_crs("EPSG:4326")
+        gdf = gdf.to_crs("EPSG:4326")   # FIXME: Back to original CRS
         return gdf
     
     provider_buildings = pd.concat([rest_service_retrieve(service_id) for service_id in service_ids], ignore_index=True)
     provider_buildings = overture_intersection(provider_buildings)
     provider_buildings = buffer_points(provider_buildings, buffer_meters=_consts._RER_BUILDING_POINTS_BUFFER_M)
     
+    buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
+    provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
+
+    return provider_buildings
+
+
+def retrieve_venezia_wfs(provider, bbox):
+    service_ids = list(map(int, provider.split('/')[1:]))
+
+    gdf_layers = []
+    for service_id in service_ids:
+        params={
+            "request":"GetFeature",
+            "TYPENAME": service_id,
+            "outputFormat": "application/json"
+        }
+        response_data = requests.get(_consts._VENEZIA_WFS_SERVICE_URL, params=params, verify=False)
+        geojson_io = io.StringIO(response_data.json())
+        wfs_gdf = gpd.read_file(geojson_io, crs=_consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].SRS)
+        wfs_gdf = wfs_gdf.cx[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+        wfs_gdf['service_id'] = service_id
+        gdf_layers.append(wfs_gdf)
+
+    # TODO: Move to utils (see above also called by rer-retriever)
+    def buffer_points(gdf, buffer_meters = 20):
+        gdf = gdf.to_crs("EPSG:7791")
+        gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, LineString, MultiLineString] else g)
+        gdf = gdf.to_crs("EPSG:4326")   # FIXME: Back to original CRS
+        return gdf
+
+    provider_buildings = pd.concat(gdf_layers, ignore_index=True)
+    # TODO: Overture intersection ???
+    provider_buildings = buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
+
     buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
 

@@ -20,6 +20,7 @@ classifiers = [
 
 dependencies = [
     "python-dotenv",
+    "xmltodict",
     "numpy<2",
     "geopandas",
     "overturemaps>=0.14.0",

@@ -150,7 +150,9 @@ def compute_wd_summary(
         if provider == 'OVERTURE':
             class_column = 'subtype'
         elif provider.startswith('RER-REST'):
-            class_column = 'rer_class'
+            class_column = 'service_class'
+        elif provider.startswith('VENEZIA-WFS'):
+            class_column = 'service_id'
         else:
             return summary
     else:

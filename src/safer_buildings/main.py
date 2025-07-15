@@ -276,7 +276,7 @@ def compute_flood(
 @click.option(
     *_ARG_NAMES.SUMMARY_ON,
     callback=lambda ctx, param, value: value.split(',') if value is not None else None,
-    required=False, default=None, help="Column(s) (separated by commas — no spaces allowed) to compute summary statistics on. If None, summary will be computed on all flooded buildings. If not provided and provider is OVERTURE, 'subtype' will be used, if provider is RER-REST then 'rer_class' will be used."
+    required=False, default=None, help="Column(s) (separated by commas — no spaces allowed) to compute summary statistics on. If None, summary will be computed on all flooded buildings. If not provided and provider is OVERTURE, 'subtype' will be used, if provider is RER-REST then 'service_class' will be used."
 )
 @click.option(
     *_ARG_NAMES.OUT_GEOJSON,

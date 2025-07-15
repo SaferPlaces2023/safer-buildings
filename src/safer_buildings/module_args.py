@@ -138,6 +138,15 @@ def validate_args(
                     provider_service = f'RER-REST/{service_id}'
                     if provider_service not in _consts._PROVIDERS:
                         raise ValueError(f"Invalid provider: {provider_service}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
+        elif provider.startswith('VENEZIA-WFS'):
+            if provider != 'VENEZIA-WFS':
+                if len(provider.split('/')) < 2:
+                    raise ValueError(f"VENEZIA-WFS provider must be 'VENEZIA-WFS' or in the format 'VENEZIA-WFS/<feature_name>'. At least one feature_name must be provided. MULTIPLE feature_names can be specified by '/' separated list, e.g. 'VENEZIA-WFS/feature1/feature2'. Check provider argument ({_ARG_NAMES.PROVIDER})")
+                feature_names = provider.split('/')[1:]
+                for feature_name in feature_names:
+                    provider_feature = f'VENEZIA-WFS/{feature_name}'
+                    if provider_feature not in _consts._PROVIDERS:
+                        raise ValueError(f"Invalid provider: {provider_feature}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
         elif provider not in _consts._PROVIDERS:
             raise ValueError(f"Invalid provider: {provider}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
     
