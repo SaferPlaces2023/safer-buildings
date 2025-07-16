@@ -63,7 +63,7 @@ def retrieve_overture(bbox):
 
 def retrieve_rer_rest(provider, bbox):
     # DOC: Retrieve from all subservices of the requested one.
-    service_ids = list(map(int, provider.split('/')[1:]))
+    service_ids = list(map(int, provider.split('/')[1:])) if provider != 'RER-REST' else _consts.RegioneEmiliaRomagnaLayers[pd.isnull(_consts.RegioneEmiliaRomagnaLayers.subLayerIds)].id.unique().tolist()
     while any([_consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].subLayerIds is not None for service_id in service_ids]):
         for service_id in service_ids:
             sub_layers = _consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].subLayerIds
@@ -73,6 +73,7 @@ def retrieve_rer_rest(provider, bbox):
                 service_ids = list(set(service_ids))
                 
     def rest_service_retrieve(service_id):
+        service_class = _consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].iloc[0]['name']
         url = f"{_consts._RER_REST_SERVICE_URL}/{service_id}/query"
         bbox4326 = bbox.to_crs("EPSG:4326").geometry.total_bounds
         params = {
@@ -122,28 +123,22 @@ def retrieve_rer_rest(provider, bbox):
 
         rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
         rest_gdf['service_id'] = service_id
-        rest_gdf['service_class'] = _consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].name.iloc[0]
-            
+        rest_gdf['service_class'] = service_class
+        Logger.debug(f"### Retrieved {len(rest_gdf)} features from {service_id} ({service_class}) RER-REST service.")
         return rest_gdf
     
     def overture_intersection(gdf_re):
         Logger.debug(f"### Overture intersection for {len(gdf_re)} RER-REST Points.")
-        gdf_ot = retrieve_overture()
+        gdf_ot = retrieve_overture(bbox)
         gdf_re['ot_id'] = gdf_re.geometry.apply(lambda geom: gdf_ot[gdf_ot.geometry.contains(geom)].id.values.tolist() if type(geom) is Point else None)
         gdf_re['ot_id'] = gdf_re['ot_id'].apply(lambda ids: ids[0] if ids is not None and len(ids) > 0 else None)
         gdf_re['geometry'] = gdf_re.apply(lambda row: gdf_ot[gdf_ot.id == row.ot_id].iloc[0].geometry if row.ot_id is not None else row.geometry, axis=1)
         Logger.debug(f'### Overture intersection: Taking overture building from {len(gdf_re[gdf_re.ot_id.notnull()])} original RER-REST Points.')
         return gdf_re
 
-    def buffer_points(gdf, buffer_meters = 20):
-        gdf = gdf.to_crs("EPSG:7791")
-        gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, LineString, MultiLineString] else g)
-        gdf = gdf.to_crs("EPSG:4326")   # FIXME: Back to original CRS
-        return gdf
-    
     provider_buildings = pd.concat([rest_service_retrieve(service_id) for service_id in service_ids], ignore_index=True)
     provider_buildings = overture_intersection(provider_buildings)
-    provider_buildings = buffer_points(provider_buildings, buffer_meters=_consts._RER_BUILDING_POINTS_BUFFER_M)
+    provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._RER_BUILDING_POINTS_BUFFER_M)
     
     buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
@@ -152,11 +147,9 @@ def retrieve_rer_rest(provider, bbox):
 
 
 def retrieve_venezia_wfs(provider, bbox):
-    service_ids = list(provider.split('/')[1:])
-
-    bounds = bbox.total_bounds
-
+    service_ids = list(provider.split('/')[1:]) if provider != 'VENEZIA-WFS' else _consts.VeneziaLayers.Name.unique().tolist()
     gdf_layers = []
+    bounds = bbox.total_bounds
     for service_id in service_ids:
         params={
             "request":"GetFeature",
@@ -169,17 +162,10 @@ def retrieve_venezia_wfs(provider, bbox):
         wfs_gdf = wfs_gdf.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         wfs_gdf['service_id'] = service_id
         gdf_layers.append(wfs_gdf)
-
-    # TODO: Move to utils (see above also called by rer-retriever)
-    def buffer_points(gdf, buffer_meters = 20):
-        gdf = gdf.to_crs("EPSG:7791")
-        gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, LineString, MultiLineString] else g)
-        gdf = gdf.to_crs("EPSG:4326")   # FIXME: Back to original CRS
-        return gdf
+        Logger.debug(f"### Retrieved {len(wfs_gdf)} features from {service_id} WFS service.")
 
     provider_buildings = pd.concat(gdf_layers, ignore_index=True)
-    # TODO: Overture intersection ???
-    provider_buildings = buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
+    provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
 
     buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)

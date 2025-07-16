@@ -93,7 +93,11 @@ def validate_args(
             raise TypeError(f"All coordinates in bbox must be int or float. Check bbox argument ({_ARG_NAMES.BBOX})")
         bbox = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs="EPSG:4326")
     else:
-        bbox = gpd.GeoDataFrame({'geometry': [box(*_utils.get_raster_bounds(waterdepth_filename))]}, crs=_utils.get_raster_crs(waterdepth_filename))
+        if buildings_filename is not None:
+            buildings_gdf = gpd.read_file(buildings_filename)
+            bbox = gpd.GeoDataFrame({'geometry': [buildings_gdf.total_bounds]}, crs=_utils.get_geodataframe_crs(buildings_gdf))
+        else:
+            bbox = gpd.GeoDataFrame({'geometry': [box(*_utils.get_raster_bounds(waterdepth_filename))]}, crs=_utils.get_raster_crs(waterdepth_filename))
     
     if out is not None:
         if type(out) is not str:

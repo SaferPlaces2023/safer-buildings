@@ -12,7 +12,7 @@ from osgeo import gdal, osr, ogr
 
 from shapely.wkt import loads
 from shapely.ops import unary_union
-from shapely.geometry import box, Polygon, Point
+from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, box, Polygon, MultiPolygon
 import geopandas as gpd
 
 from .module_log import Logger
@@ -149,6 +149,14 @@ def ensure_geodataframe_crs(geo_df, epsg_string):
         target_crs_wkt = srs.ExportToWkt()
         return geo_df.to_crs(crs=target_crs_wkt)
     
+
+def buffer_points(gdf, buffer_meters):
+    og_crs = gdf.crs
+    gdf.to_crs(epsg=3857, inplace=True)
+    gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, MultiPoint, LineString, MultiLineString] else g)
+    gdf = gdf.to_crs(og_crs)
+    return gdf
+
 
 def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     """
