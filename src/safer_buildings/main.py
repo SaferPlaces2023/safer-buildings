@@ -171,6 +171,7 @@ def compute_flood(
         # DOC: 8 — Return results
         Logger.debug('# Preparing geojson output results ...')
         filtered_flooded_buildings = filtered_flooded_buildings.to_crs(t_srs)
+        filtered_flooded_buildings = _utils.df_dt_col_to_isoformat(filtered_flooded_buildings)
         feature_collection = filtered_flooded_buildings.to_geo_dict()
         feature_collection['metadata'] = {
             'provider': provider,

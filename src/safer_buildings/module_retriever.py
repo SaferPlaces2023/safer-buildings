@@ -152,19 +152,21 @@ def retrieve_rer_rest(provider, bbox):
 
 
 def retrieve_venezia_wfs(provider, bbox):
-    service_ids = list(map(int, provider.split('/')[1:]))
+    service_ids = list(provider.split('/')[1:])
+
+    bounds = bbox.total_bounds
 
     gdf_layers = []
     for service_id in service_ids:
         params={
             "request":"GetFeature",
             "TYPENAME": service_id,
-            "outputFormat": "application/json"
+            "outputFormat": "application/json",
         }
         response_data = requests.get(_consts._VENEZIA_WFS_SERVICE_URL, params=params, verify=False)
-        geojson_io = io.StringIO(response_data.json())
-        wfs_gdf = gpd.read_file(geojson_io, crs=_consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].SRS)
-        wfs_gdf = wfs_gdf.cx[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+        geojson_io = io.StringIO(response_data.text)
+        wfs_gdf = gpd.read_file(geojson_io, crs=_consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].DefaultSRS).to_crs(bbox.crs)
+        wfs_gdf = wfs_gdf.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         wfs_gdf['service_id'] = service_id
         gdf_layers.append(wfs_gdf)
 

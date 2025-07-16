@@ -6,6 +6,7 @@ import tempfile
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_datetime64_any_dtype
 
 from osgeo import gdal, osr, ogr
 
@@ -94,6 +95,13 @@ def forceext(pathname, newext):
     root, _ = os.path.splitext(normpath(pathname))
     pathname = root + ("." + newext if len(newext.strip()) > 0 else "")
     return normpath(pathname)
+
+
+def df_dt_col_to_isoformat(df):
+    for col in df.columns:
+        if is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].apply(lambda x: x.isoformat() if pd.notnull(x) else None)
+    return df
 
 
 
