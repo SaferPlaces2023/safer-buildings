@@ -147,11 +147,11 @@ def compute_wd_summary(
             buildings['_summary_category'] = buildings['_summary_category'].apply(lambda x: ' / '.join(x) if isinstance(x, list) and len(x) > 0 else np.nan)
             class_column = '_summary_category'
     elif provider is not None:
-        if provider == 'OVERTURE':
+        if provider == 'OVERTURE' and 'subtype' in buildings.columns:
             class_column = 'subtype'
-        elif provider.startswith('RER-REST'):
+        elif provider.startswith('RER-REST') and 'service_class' in buildings.columns:
             class_column = 'service_class'
-        elif provider.startswith('VENEZIA-WFS'):
+        elif provider.startswith('VENEZIA-WFS') and 'service_id' in buildings.columns:
             class_column = 'service_id'
         else:
             return summary

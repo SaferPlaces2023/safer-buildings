@@ -195,7 +195,8 @@ cython_debug/
 
 # Test folder
 tests/*
-!tests/*.py
+!tests/unit-tests/
+!tests/unit-tests/*.py
 /**/*.geojson
 /**/__pycache__/
 *.tif

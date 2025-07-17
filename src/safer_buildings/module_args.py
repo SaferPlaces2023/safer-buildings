@@ -95,7 +95,7 @@ def validate_args(
     else:
         if buildings_filename is not None:
             buildings_gdf = gpd.read_file(buildings_filename)
-            bbox = gpd.GeoDataFrame({'geometry': [buildings_gdf.total_bounds]}, crs=_utils.get_geodataframe_crs(buildings_gdf))
+            bbox = gpd.GeoDataFrame({'geometry': [box(*buildings_gdf.total_bounds)]}, crs=_utils.get_geodataframe_crs(buildings_gdf))
         else:
             bbox = gpd.GeoDataFrame({'geometry': [box(*_utils.get_raster_bounds(waterdepth_filename))]}, crs=_utils.get_raster_crs(waterdepth_filename))
     
