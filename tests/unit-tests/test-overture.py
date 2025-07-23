@@ -2,7 +2,7 @@ import os
 import unittest
 
 from safer_buildings import compute_flood as main_python
-from safer_buildings import module_s3, filesystem
+from safer_buildings import module_s3, filesystem, _consts
 
 
 class Test(unittest.TestCase):
@@ -11,9 +11,9 @@ class Test(unittest.TestCase):
     """
 
     def test_vicenza_001(self):
-        """
+        f"""
         CLI Command:
-        safer-buildings --water s3://saferplaces.co/Safer-Buildings/test/vicenza-wd-200mm-1h.tif --out s3://saferplaces.co/Safer-Buildings/test/vicenza-wd-200mm-1h-flood-buildings.geojson --provider OVERTURE --summary --stats --debug
+        safer-buildings --water s3://saferplaces.co/Safer-Buildings/test/vicenza-wd-200mm-1h.tif --out s3://saferplaces.co/Safer-Buildings/test/vicenza-wd-200mm-1h-flood-buildings.geojson --provider {_consts._OVERTURE_PROVIDER} --summary --stats --debug
         """
         
         args = {
@@ -23,7 +23,7 @@ class Test(unittest.TestCase):
             "bbox": None,
             "out": "s3://saferplaces.co/Safer-Buildings/test/vicenza-wd-200mm-1h-flood-buildings.geojson",
             "t_srs": None,
-            "provider": "OVERTURE",
+            "provider": _consts._OVERTURE_PROVIDER,
             "filters": None,
             "only_flood": False,
             "stats": True,

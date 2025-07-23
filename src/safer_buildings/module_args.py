@@ -133,22 +133,22 @@ def validate_args(
     else:
         if type(provider) is not str:
             raise TypeError("provider must be a string")
-        if provider.startswith('RER-REST'):
-            if provider != 'RER-REST':
+        if provider.startswith(_consts._RER_REST_PROVIDER):
+            if provider != _consts._RER_REST_PROVIDER:
                 if len(provider.split('/')) < 2:
-                    raise ValueError(f"RER-REST provider must be 'RER-REST' or in the format 'RER-REST/<service_id>'. At least one service_id must be provided. MULTIPLE service_ids can be specified by '/' separated list, e.g. 'RER-REST/30/31/32'. Check provider argument ({_ARG_NAMES.PROVIDER})")
+                    raise ValueError(f"{_consts._RER_REST_PROVIDER} provider must be '{_consts._RER_REST_PROVIDER}' or in the format '{_consts._RER_REST_PROVIDER}/<service_id>'. At least one service_id must be provided. MULTIPLE service_ids can be specified by '/' separated list, e.g. '{_consts._RER_REST_PROVIDER}/30/31/32'. Check provider argument ({_ARG_NAMES.PROVIDER})")
                 service_ids = provider.split('/')[1:]
                 for service_id in service_ids:
-                    provider_service = f'RER-REST/{service_id}'
+                    provider_service = f'{_consts._RER_REST_PROVIDER}/{service_id}'
                     if provider_service not in _consts._PROVIDERS:
                         raise ValueError(f"Invalid provider: {provider_service}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
-        elif provider.startswith('VENEZIA-WFS'):
-            if provider != 'VENEZIA-WFS':
+        elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
+            if provider != _consts._VENEZIA_WFS_PROVIDER:
                 if len(provider.split('/')) < 2:
-                    raise ValueError(f"VENEZIA-WFS provider must be 'VENEZIA-WFS' or in the format 'VENEZIA-WFS/<feature_name>'. At least one feature_name must be provided. MULTIPLE feature_names can be specified by '/' separated list, e.g. 'VENEZIA-WFS/feature1/feature2'. Check provider argument ({_ARG_NAMES.PROVIDER})")
+                    raise ValueError(f"{_consts._VENEZIA_WFS_PROVIDER} provider must be '{_consts._VENEZIA_WFS_PROVIDER}' or in the format '{_consts._VENEZIA_WFS_PROVIDER}/<feature_name>'. At least one feature_name must be provided. MULTIPLE feature_names can be specified by '/' separated list, e.g. '{_consts._VENEZIA_WFS_PROVIDER}/feature1/feature2'. Check provider argument ({_ARG_NAMES.PROVIDER})")
                 feature_names = provider.split('/')[1:]
                 for feature_name in feature_names:
-                    provider_feature = f'VENEZIA-WFS/{feature_name}'
+                    provider_feature = f'{_consts._VENEZIA_WFS_PROVIDER}/{feature_name}'
                     if provider_feature not in _consts._PROVIDERS:
                         raise ValueError(f"Invalid provider: {provider_feature}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
         elif provider not in _consts._PROVIDERS:

@@ -36,11 +36,11 @@ def retrieve_buildings(
             
         buildings_filename = _utils.temp_filename(ext='shp', prefix=f"{provider.replace('/','-')}_buildings")
         
-        if provider == 'OVERTURE':
+        if provider == _consts._OVERTURE_PROVIDER:
             provider_buildings = retrieve_overture(bbox)
-        elif provider.startswith('RER-REST'):
+        elif provider.startswith(_consts._RER_REST_PROVIDER):
             provider_buildings = retrieve_rer_rest(provider, bbox)     
-        elif provider.startswith('VENEZIA-WFS'):
+        elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
             provider_buildings = retrieve_venezia_wfs(provider, bbox) 
         else:
             raise ValueError(f"Provider '{provider}' is not supported. Available providers are: {_consts._PROVIDERS}.")
@@ -124,16 +124,16 @@ def retrieve_rer_rest(provider, bbox):
         rest_gdf = gpd.GeoDataFrame(features, geometry=geometries, crs=f"EPSG:{data['spatialReference']['wkid']}")
         rest_gdf['service_id'] = service_id
         rest_gdf['service_class'] = service_class
-        Logger.debug(f"### Retrieved {len(rest_gdf)} features from {service_id} ({service_class}) RER-REST service.")
+        Logger.debug(f"### Retrieved {len(rest_gdf)} features from {service_id} ({service_class}) {_consts._RER_REST_PROVIDER} service.")
         return rest_gdf
     
     def overture_intersection(gdf_re):
-        Logger.debug(f"### Overture intersection for {len(gdf_re)} RER-REST Points.")
+        Logger.debug(f"### Overture intersection for {len(gdf_re)} {_consts._RER_REST_PROVIDER} Points.")
         gdf_ot = retrieve_overture(bbox)
         gdf_re['ot_id'] = gdf_re.geometry.apply(lambda geom: gdf_ot[gdf_ot.geometry.contains(geom)].id.values.tolist() if type(geom) is Point else None)
         gdf_re['ot_id'] = gdf_re['ot_id'].apply(lambda ids: ids[0] if ids is not None and len(ids) > 0 else None)
         gdf_re['geometry'] = gdf_re.apply(lambda row: gdf_ot[gdf_ot.id == row.ot_id].iloc[0].geometry if row.ot_id is not None else row.geometry, axis=1)
-        Logger.debug(f'### Overture intersection: Taking overture building from {len(gdf_re[gdf_re.ot_id.notnull()])} original RER-REST Points.')
+        Logger.debug(f'### Overture intersection: Taking overture building from {len(gdf_re[gdf_re.ot_id.notnull()])} original {_consts._RER_REST_PROVIDER} Points.')
         return gdf_re
 
     provider_buildings = pd.concat([rest_service_retrieve(service_id) for service_id in service_ids], ignore_index=True)
@@ -147,7 +147,7 @@ def retrieve_rer_rest(provider, bbox):
 
 
 def retrieve_venezia_wfs(provider, bbox):
-    service_ids = list(provider.split('/')[1:]) if provider != 'VENEZIA-WFS' else _consts.VeneziaLayers.Name.unique().tolist()
+    service_ids = list(provider.split('/')[1:]) if provider != _consts._VENEZIA_WFS_PROVIDER else _consts.VeneziaLayers.Name.unique().tolist()
     gdf_layers = []
     bounds = bbox.total_bounds
     for service_id in service_ids:
@@ -162,7 +162,7 @@ def retrieve_venezia_wfs(provider, bbox):
         wfs_gdf = wfs_gdf.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         wfs_gdf['service_id'] = service_id
         gdf_layers.append(wfs_gdf)
-        Logger.debug(f"### Retrieved {len(wfs_gdf)} features from {service_id} WFS service.")
+        Logger.debug(f"### Retrieved {len(wfs_gdf)} features from {service_id} {_consts._VENEZIA_WFS_PROVIDER} service.")
 
     provider_buildings = pd.concat(gdf_layers, ignore_index=True)
     provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
