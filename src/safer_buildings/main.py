@@ -22,7 +22,7 @@ import leafmap
 
 from . import _utils
 from .module_log import Logger, is_debug_mode
-from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_s3, module_version
+from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_s3, module_additional_operations, module_version
 from .module_args import _ARG_NAMES
 
 from dotenv import load_dotenv
@@ -47,6 +47,7 @@ def compute_flood(
     stats: bool = False,
     summary: bool = False,
     summary_on: str | list[str] | None = None,
+    add_ops: list[str] | None = None,
     out_geojson: bool = False,
     
     # Additional parameters for CLI
@@ -100,9 +101,10 @@ def compute_flood(
             compute_stats = stats,
             compute_summary = summary,
             summary_on = summary_on,
+            add_ops = add_ops,
             out_geojson = out_geojson,
         )
-        waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, out_geojson = validated_args
+        waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson = validated_args
         
         
         # DOC: 2 — Gather buildings
@@ -168,7 +170,26 @@ def compute_flood(
         # DOC: 7.1 — Drop other geometry columns
         filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_bounds', 'flood_geometry', 'flood_coords'] if col in filtered_flooded_buildings.columns])
         
-        # DOC: 8 — Return results
+
+        # DOC: 8 — Run additional operations if any
+        add_ops_output_data = dict()
+        if add_ops is not None:
+            for op_name,op_args in add_ops.items():
+                Logger.debug(f'# Running additional operation: {op_name} with args: {op_args} ...')
+                op = module_additional_operations.get_op_by_name(provider, op_name)
+                if op is module_additional_operations.NearbyPumps:
+                    op = op(**op_args)
+                    nearby_pumps_output = op( ** {
+                        'gdf_buildings': filtered_flooded_buildings,
+                        'gdf_water_depth': waterdepth_polygonized,
+                        'bbox': bbox,
+                        't_srs': t_srs,
+                    })
+                    filtered_flooded_buildings, nearby_pumps_collection = nearby_pumps_output
+                    add_ops_output_data[op_name] = nearby_pumps_collection
+
+
+        # DOC: 9 — Return results
         Logger.debug('# Preparing geojson output results ...')
         filtered_flooded_buildings = filtered_flooded_buildings.to_crs(t_srs)
         filtered_flooded_buildings = _utils.df_dt_col_to_isoformat(filtered_flooded_buildings)
@@ -177,7 +198,8 @@ def compute_flood(
             'provider': provider,
             'buildings_count': len(filtered_flooded_buildings),
             'flooded_buildings_count': int(filtered_flooded_buildings['is_flooded'].sum()),
-            'summary': summary_stats if compute_summary else None
+            'summary': summary_stats if compute_summary else None,
+            ** add_ops_output_data
         }
         feature_collection['crs'] = {
             "type": "name",
@@ -188,7 +210,7 @@ def compute_flood(
         Logger.debug(f"## Buildings feature collection prepared with {len(feature_collection['features']) if 'features' in feature_collection else 0} features.")
             
         
-        # DOC: 9 — Save results to file
+        # DOC: 10 — Save results to file
         Logger.debug(f'# Saving results to {out} ...')
         if out.startswith('s3://'):
             out_tmp = _utils.temp_filename(ext='geojson', prefix='safer-buildings_out')
@@ -203,7 +225,7 @@ def compute_flood(
         Logger.debug(f"## Results saved to {out}")
         
         
-        # DOC: 10 — Return output
+        # DOC: 11 — Return output
         output = feature_collection
         if not out_geojson:
             geojson_ref_key = 's3_uri' if out.startswith('s3://') else 'geojson_file'
@@ -260,6 +282,7 @@ def compute_flood(
 )
 @click.option(
     *_ARG_NAMES.FILTERS,
+    callback = lambda ctx, param, value: json.loads(value.replace("'", '"')) if value else None,
     type=str, default=None, help='Filters for providers-features in JSON format.'
 )
 @click.option(
@@ -276,8 +299,13 @@ def compute_flood(
 )
 @click.option(
     *_ARG_NAMES.SUMMARY_ON,
-    callback=lambda ctx, param, value: value.split(',') if value is not None else None,
+    callback = lambda ctx, param, value: value.split(',') if value is not None else None,
     required=False, default=None, help="Column(s) (separated by commas — no spaces allowed) to compute summary statistics on. If None, summary will be computed on all flooded buildings. If not provided and provider is OVERTURE, 'subtype' will be used, if provider is RER-REST then 'service_class' will be used."
+)
+@click.option(
+    *_ARG_NAMES.ADD_OPS,
+    callback = lambda ctx, param, value: _ARG_NAMES.parse_add_ops(value),
+    required=False, default=None, help="Additional operations to perform on the results. Supported operations depend on selected provider."
 )
 @click.option(
     *_ARG_NAMES.OUT_GEOJSON,
@@ -300,6 +328,7 @@ def main(
     stats,
     summary,
     summary_on,
+    add_ops,
     out_geojson,
     
     version,
@@ -329,9 +358,6 @@ def main(
     Logger.debug("# Starting flooded buildings analysis ...")
     time_start = time.time()
     
-    if filters:
-        filters = json.loads(filters.replace("'", '"'))  # Convert single quotes to double quotes for JSON parsing
-        
     Logger.debug("# CLI parameters:")
     Logger.debug(f"## Water depth file: {water}")
     Logger.debug(f"## Buildings file: {building}")
@@ -345,6 +371,7 @@ def main(
     Logger.debug(f"## Stats: {stats}")
     Logger.debug(f"## Summary: {summary}")
     Logger.debug(f"## Summary on: {summary_on}")
+    Logger.debug(f"## Additional operations: {add_ops}")
     Logger.debug(f'## Output GeoJSON: {out_geojson}')
     
     result = compute_flood(
@@ -360,6 +387,7 @@ def main(
         stats = stats,
         summary = summary,
         summary_on = summary_on,
+        add_ops = add_ops,
         out_geojson = out_geojson,
         
         # Additional parameters for CLI

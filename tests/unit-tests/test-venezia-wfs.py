@@ -2,7 +2,7 @@ import os
 import unittest
 
 from safer_buildings import compute_flood as main_python
-from safer_buildings import module_s3, filesystem, _consts
+from safer_buildings import module_s3, filesystem, _consts, module_additional_operations
 
 
 class Test(unittest.TestCase):
@@ -13,7 +13,7 @@ class Test(unittest.TestCase):
     def test_venezia_001(self):
         f"""
         CLI Command:
-        safer-buildings --water s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif --out s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings.geojson --provider {_consts._VENEZIA_WFS_PROVIDER} --summary --stats --debug
+        safer-buildings --water s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif --out s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-nearest_pump.geojson --provider VENEZIA-WFS/v_pc_p0106011_scuole --summary --stats --add_ops nearby_pumps --debug
         """
         
         args = {
@@ -21,14 +21,19 @@ class Test(unittest.TestCase):
             "building": None,
             "wd_thresh": None,
             "bbox": None,
-            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings.geojson",
+            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-nearest_pump.geojson",
             "t_srs": None,
-            "provider": _consts._VENEZIA_WFS_PROVIDER,
+            "provider": f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0106011_scuole',
             "filters": None,
             "only_flood": False,
-            "stats": True,
+            "stats": False,
             "summary": True,
             "summary_on": None,
+            "add_ops": {
+                module_additional_operations.NearbyPumps.name: {
+                    "max_distance": 1000.0,
+                }
+            },
             "out_geojson": False,
 
             "version": False,

@@ -1,5 +1,7 @@
 import os
+import re
 import datetime
+from typing import Any
 
 from osgeo import osr
 
@@ -8,7 +10,7 @@ import geopandas as gpd
 
 from . import _utils
 from . import _consts
-from . import module_s3
+from . import module_s3, module_additional_operations
 
 from .module_log import Logger
 
@@ -25,7 +27,41 @@ class _ARG_NAMES():
     STATS = ['--stats']
     SUMMARY = ['--summary']
     SUMMARY_ON = ['--summary_on']
+    ADD_OPS = ['--add_ops']
     OUT_GEOJSON = ['--out_geojson']
+
+
+    def parse_add_ops(value: str) -> dict[str, dict[str, Any]] | None:
+
+        def parse_op(op_str):
+            # DOC: Pattern to match the operation name and attributes
+            pattern = r'^(\w+)(?:\[(.*?)\])?$'
+            attr_pattern = r'(\w+)\s*=\s*(?:"([^"]*)"|([^;]*))'
+
+            match = re.match(pattern, op_str)
+            if not match:
+                return {}
+
+            key = match.group(1)
+            attr_str = match.group(2)
+
+            attributes = {}
+            if attr_str:
+                for attr_match in re.finditer(attr_pattern, attr_str):
+                    attr_name = attr_match.group(1)
+                    attr_value = attr_match.group(2) or attr_match.group(3)
+                    attributes[attr_name] = attr_value
+
+            return {key: attributes}
+        
+        if value is None:
+            return None
+        ops_str = value.split('|')
+        ops_dict = {}
+        for op_str in ops_str:
+            ops_dict.update(parse_op(op_str.strip()))
+        return ops_dict
+
 
 
 def validate_args(
@@ -41,6 +77,7 @@ def validate_args(
     compute_stats: bool = False,
     compute_summary: bool = False,
     summary_on: str | list[str] | None = None,
+    add_ops: list[str] | None = None,
     out_geojson: bool = False
 ) -> tuple[str, str | None, float, gpd.GeoDataFrame, str, str, str, list[dict[str, list]], bool, bool, bool]:
     
@@ -196,6 +233,17 @@ def validate_args(
         if not all([isinstance(item, str) for item in summary_on]):
             raise TypeError(f"All items in summary_on must be strings. Check summary_on argument ({_ARG_NAMES.SUMMARY_ON})")
         compute_summary = True
+
+    if add_ops is not None:
+        if provider is None:
+            raise ValueError(f"Additional operations must be provided with a provider. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+        provider_add_ops = module_additional_operations.get_ops_by_provider(provider)
+        for op_name, op_args in add_ops.items():
+            if op_name not in provider_add_ops:
+                raise ValueError(f"Invalid additional operation: {op_name}. Valid operations for provider '{provider}' are: {list(provider_add_ops.keys())}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+            for argn,_ in op_args.items():
+                if argn not in provider_add_ops[op_name].args:
+                    raise ValueError(f"Invalid argument '{argn}' for additional operation '{op_name}'. Valid arguments are: {provider_add_ops[op_name].args}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
     
     if out_geojson is None:
         out_geojson = False
@@ -216,7 +264,8 @@ def validate_args(
     Logger.debug(f"### Compute stats: {compute_stats}")
     Logger.debug(f"### Compute summary: {compute_summary}")
     Logger.debug(f"### Summary on: {summary_on}")
+    Logger.debug(f"### Additional operations: {add_ops}")
     Logger.debug(f"### Output GeoJSON: {out_geojson}")
         
-    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, out_geojson
+    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson
 
