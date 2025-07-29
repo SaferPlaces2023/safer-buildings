@@ -1,8 +1,8 @@
 import os
 import unittest
 
-from safer_buildings import compute_flood as main_python
-from safer_buildings import module_s3, filesystem, _consts, module_additional_operations
+from safer_buildings import compute_flood as main_python, module_add_ops
+from safer_buildings import module_s3, filesystem, _consts
 
 
 class Test(unittest.TestCase):
@@ -21,8 +21,8 @@ class Test(unittest.TestCase):
             "building": None,
             "wd_thresh": None,
             "bbox": None,
-            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-nearest_pump.geojson",
-            "t_srs": None,
+            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-alert_method.geojson",
+            "t_srs": "EPSG:4326",
             "provider": f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0106011_scuole',
             "filters": None,
             "only_flood": False,
@@ -30,8 +30,11 @@ class Test(unittest.TestCase):
             "summary": True,
             "summary_on": None,
             "add_ops": {
-                module_additional_operations.NearbyPumps.name: {
+                module_add_ops.NearbyPumps.name: {
                     "max_distance": 1000.0,
+                },
+                module_add_ops.AlertMethod.name: {
+                    "wd_buffer": 100.0,
                 }
             },
             "out_geojson": False,

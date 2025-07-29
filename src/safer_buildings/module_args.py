@@ -8,9 +8,9 @@ from osgeo import osr
 from shapely.geometry import box
 import geopandas as gpd
 
-from . import _utils
+from . import _utils, module_add_ops
 from . import _consts
-from . import module_s3, module_additional_operations
+from . import module_s3
 
 from .module_log import Logger
 
@@ -237,7 +237,7 @@ def validate_args(
     if add_ops is not None:
         if provider is None:
             raise ValueError(f"Additional operations must be provided with a provider. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
-        provider_add_ops = module_additional_operations.get_ops_by_provider(provider)
+        provider_add_ops = module_add_ops.get_ops_by_provider(provider)
         for op_name, op_args in add_ops.items():
             if op_name not in provider_add_ops:
                 raise ValueError(f"Invalid additional operation: {op_name}. Valid operations for provider '{provider}' are: {list(provider_add_ops.keys())}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")

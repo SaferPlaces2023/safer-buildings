@@ -20,9 +20,9 @@ import geopandas as gpd
 
 import leafmap
 
-from . import _utils
+from . import _utils, module_add_ops
 from .module_log import Logger, is_debug_mode
-from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_s3, module_additional_operations, module_version
+from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_s3, module_version
 from .module_args import _ARG_NAMES
 
 from dotenv import load_dotenv
@@ -176,8 +176,9 @@ def compute_flood(
         if add_ops is not None:
             for op_name,op_args in add_ops.items():
                 Logger.debug(f'# Running additional operation: {op_name} with args: {op_args} ...')
-                op = module_additional_operations.get_op_by_name(provider, op_name)
-                if op is module_additional_operations.NearbyPumps:
+                op = module_add_ops.get_op_by_name(provider, op_name)
+                # DOC: Handle Additional Operation execution with its proper arguments
+                if op is module_add_ops.NearbyPumps:
                     op = op(**op_args)
                     nearby_pumps_output = op( ** {
                         'gdf_buildings': filtered_flooded_buildings,
@@ -187,6 +188,16 @@ def compute_flood(
                     })
                     filtered_flooded_buildings, nearby_pumps_collection = nearby_pumps_output
                     add_ops_output_data[op_name] = nearby_pumps_collection
+                elif op is module_add_ops.AlertMethod:
+                    op = op(**op_args)
+                    alert_method_output = op( ** {
+                        'gdf_buildings': filtered_flooded_buildings,
+                        'gdf_water_depth': waterdepth_polygonized,
+                        'bbox': bbox,
+                        't_srs': t_srs,
+                    })
+                    filtered_flooded_buildings, alert_method_collection = alert_method_output
+                    add_ops_output_data[op_name] = alert_method_collection
 
 
         # DOC: 9 — Return results
