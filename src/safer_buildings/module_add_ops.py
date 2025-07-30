@@ -22,32 +22,25 @@ class AdditionalOperation():
         
 
 
+
 # DOC: This is for VENEZIA_WFS_PROVIDER (Find the nearest pump to a flooded building)
 class NearbyPumps(AdditionalOperation):
 
-    name = 'nearby-pumps'
+    name = 'nearby_pumps'
     args = [
-        # DOC: Maximum distance to consider a pump as "nearby" (in meters). Default is 1000.0 meters.
-        'max_distance',
-        # DOC: If True, only consider pumps that intersect with the water depth area of the building. Default is False.
-        'wd_intersect'              
+         # DOC: The buffer to use around water depth areas (in meters). Default is 100.0 meters.
+        'wd_buffer'          
     ]
 
     _pumps_layer_id = 'mv_risorse_p0109103_pompe'
     _nearby_pumps_basic_attributes = ['id', 'modello', 'distance', 'indirizzo']
 
-    def __init__(self, max_distance: float = 1000.0, wd_intersect: bool = False):
+    def __init__(self, wd_buffer: float = 100.0):
         super().__init__(name=self.name)
-        self._configure(
-            max_distance = max_distance, 
-            wd_intersect = wd_intersect
-        )
-        
+        self._configure(wd_buffer=wd_buffer)
 
-    def _configure(self, max_distance: float = 1000.0, wd_intersect: bool = False):
-        self.max_distance = float(max_distance) if type(max_distance) is str else max_distance
-        self.wd_intersect = bool(wd_intersect) if type(wd_intersect) is str else wd_intersect
-
+    def _configure(self, wd_buffer: float = 100.0):
+        self.wd_buffer = float(wd_buffer) if type(wd_buffer) is str else wd_buffer
 
     def __call__(self, **kwargs):
 
@@ -66,69 +59,53 @@ class NearbyPumps(AdditionalOperation):
         gdf_pumps_3857 = gdf_pumps.to_crs(epsg=3857)
         gdf_pumps_3857['geometry'] = gdf_pumps_3857.centroid
 
-
-        # DOC: Foreach building, retrieve (if any) the pump within the water depth area
+        # DOC: Foreach water depth area, retrieve (if any) the pump within the water depth area
         nearby_pumps_gdfs = []
         gdf_buildings['nearby_pumps'] = [list() for _ in range(len(gdf_buildings))]
-        for i_building, building in gdf_buildings_3857.iterrows():
+        for i_wd, wd in gdf_wd_3857.iterrows():
 
-            # DOC: Skip if the building is not flooded
-            if not building.is_flooded:
+            # DOC: Get the pumps within the water depth area
+            wd_bounds = wd.geometry.buffer(self.wd_buffer).bounds if self.wd_buffer > 0 else wd.geometry.bounds
+            wd_pumps = gdf_pumps_3857.cx[wd_bounds[0]:wd_bounds[2], wd_bounds[1]:wd_bounds[3]]
+            if wd_pumps.empty:
                 continue
-        
-            if self.wd_intersect:
-                # DOC: Get the flooded area for the building
-                building_bbox = building.geometry.bounds
-                building_wd = gdf_wd_3857.cx[building_bbox[0]:building_bbox[2], building_bbox[1]:building_bbox[3]]
-                building_wd_bbox = building_wd.total_bounds
-                # DOC: Get the pumps within the building's water depth area
-                building_wd_pumps = gdf_pumps_3857.cx[building_wd_bbox[0]:building_wd_bbox[2], building_wd_bbox[1]:building_wd_bbox[3]]
-            else:
-                # DOC: Get the pumps within the building's buffer area bounding box
-                building_bbox = building.geometry.buffer(self.max_distance).bounds
-                building_wd_pumps = gdf_pumps_3857.cx[building_bbox[0]:building_bbox[2], building_bbox[1]:building_bbox[3]]
-                
-            if building_wd_pumps.empty:
-                continue
+            wd_pumps = wd_pumps.drop_duplicates(subset='id')
 
-            building_wd_pumps = building_wd_pumps.drop_duplicates(subset='id')
-
-            # DOC: Calculate the distance from the building to each pump
-            building_wd_pumps['distance'] = building.geometry.distance(building_wd_pumps.geometry)
-            # DOC: Filter pumps within the max distance
-            nearby_pumps = building_wd_pumps[building_wd_pumps['distance'] <= self.max_distance]
-            if nearby_pumps.empty:
-                continue
-            
             # DOC: Collect the nearby pumps GeoDataFrame
-            nearby_pumps = nearby_pumps.to_crs(kwargs['t_srs'])
-            nearby_pumps_gdfs.append(nearby_pumps)
-            
-            # DOC: Add pump information to the building
-            nearby_pumps['location'] = nearby_pumps['geometry'].apply(lambda geom: [geom.x, geom.y])
-            nearby_pumps = pd.DataFrame(nearby_pumps.drop(columns='geometry'))
-            nearby_pumps = nearby_pumps[self._nearby_pumps_basic_attributes + ['location']]
-            nearby_pumps = _utils.df_dt_col_to_isoformat(nearby_pumps)
-            nearby_pumps = json.loads(nearby_pumps.to_json(orient='records'))
-            gdf_buildings.at[i_building, 'nearby_pumps'] = nearby_pumps
+            wd_pumps = wd_pumps.to_crs(kwargs['t_srs'])
+            nearby_pumps_gdfs.append(wd_pumps)
 
+            # DOC: Mark buildings in the water depth area affected by retrieved nearby pumps
+            affected_buildings = gdf_buildings_3857[gdf_buildings_3857.geometry.intersects(wd.geometry)]
+            if affected_buildings.empty:
+                continue
+            wd_pumps['location'] = wd_pumps['geometry'].apply(lambda geom: [geom.x, geom.y])
+            wd_pumps = pd.DataFrame(wd_pumps.drop(columns='geometry'))
+            wd_pumps = wd_pumps[self._nearby_pumps_basic_attributes + ['location']]
+            wd_pumps = _utils.df_dt_col_to_isoformat(wd_pumps)
+            wd_pumps = json.loads(wd_pumps.to_json(orient='records'))
+            for i_building, _ in affected_buildings.iterrows():
+                gdf_buildings.at[i_building, 'nearby_pumps'] = wd_pumps
 
+        # DOC: If nearby pumps were found, build a feature collection of them
         if nearby_pumps_gdfs:
             nearby_pumps_gdf = pd.concat(nearby_pumps_gdfs, ignore_index=True).drop_duplicates(subset='id').reset_index(drop=True)
             nearby_pumps_gdf = _utils.df_dt_col_to_isoformat(nearby_pumps_gdf)
             nearby_pumps_collection = nearby_pumps_gdf.to_geo_dict()
         else:
             nearby_pumps_collection = { 'type': 'FeatureCollection', 'features': [] }
-
+        
         # DOC: Return the updated GeoDataFrame with the nearest pumps and the nearby pumps collection
         return gdf_buildings, nearby_pumps_collection
+
+            
 
 
 
 # DOC: This is for VENEZIA_WFS_PROVIDER (Alert method to use)
 class AlertMethod(AdditionalOperation):
 
-    name = 'alert-method'
+    name = 'alert_method'
     args = [
         # DOC: The buffer to use around water depth areas (in meters). Default is 100.0 meters.
         'wd_buffer'
@@ -161,7 +138,7 @@ class AlertMethod(AdditionalOperation):
         )
         gdf_alert_method = gdf_alert_method[(gdf_alert_method['allagament_t']=='Sì') | (gdf_alert_method['r_altro']=='Acqua Alta')]
 
-        # DOC: Convert CRS to Projected CRS (EPSG:3857) due to calculating distances
+        # DOC: Convert CRS to Projected CRS (EPSG:3857) due to geometry calculations
         gdf_buildings_3857 = gdf_buildings.to_crs(epsg=3857)
         gdf_wd_3857 = gdf_wd.to_crs(epsg=3857)
         gdf_alert_area_3857 = gdf_alert_area.to_crs(epsg=3857)
@@ -189,8 +166,6 @@ class AlertMethod(AdditionalOperation):
             # DOC: Collect the alert method GeoDataFrame
             wd_alert_method = wd_alert_method.to_crs(kwargs['t_srs'])
             alert_method_gdfs.append(wd_alert_method)
-            
-
 
             # DOC: Mark (flooded) buildings in the alert area with relative alert method
             alert_buildings = gdf_buildings_3857[gdf_buildings_3857.geometry.intersects(wd_alert_area.geometry.union_all())]    
@@ -205,7 +180,7 @@ class AlertMethod(AdditionalOperation):
             for i_building, _ in alert_buildings.iterrows():
                 gdf_buildings.at[i_building, 'alert_method'] = wd_alert_method
 
-
+        # DOC: If alert methods weere founde, build a feature colection of them
         if alert_method_gdfs:
             alert_method_gdf = pd.concat(alert_method_gdfs, ignore_index=True).drop_duplicates(subset='id').reset_index(drop=True)
             alert_method_gdf = _utils.df_dt_col_to_isoformat(alert_method_gdf)

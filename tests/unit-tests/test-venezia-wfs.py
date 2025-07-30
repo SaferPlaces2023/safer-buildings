@@ -21,7 +21,7 @@ class Test(unittest.TestCase):
             "building": None,
             "wd_thresh": None,
             "bbox": None,
-            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-alert_method.geojson",
+            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
             "t_srs": "EPSG:4326",
             "provider": f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0106011_scuole',
             "filters": None,
@@ -31,7 +31,7 @@ class Test(unittest.TestCase):
             "summary_on": None,
             "add_ops": {
                 module_add_ops.NearbyPumps.name: {
-                    "max_distance": 1000.0,
+                    "wd_buffer": 1000.0,
                 },
                 module_add_ops.AlertMethod.name: {
                     "wd_buffer": 100.0,
