@@ -94,6 +94,8 @@ class NearbyPumps(AdditionalOperation):
             nearby_pumps_collection = nearby_pumps_gdf.to_geo_dict()
         else:
             nearby_pumps_collection = { 'type': 'FeatureCollection', 'features': [] }
+
+        Logger.debug(f"## Found {len(nearby_pumps_collection['features'])} nearby pumps for the flooded areas.")
         
         # DOC: Return the updated GeoDataFrame with the nearest pumps and the nearby pumps collection
         return gdf_buildings, nearby_pumps_collection
@@ -187,6 +189,8 @@ class AlertMethod(AdditionalOperation):
             alert_method_collection = alert_method_gdf.to_geo_dict()
         else:
             alert_method_collection = { 'type': 'FeatureCollection', 'features': [] }
+
+        Logger.debug(f"## Found {len(alert_method_collection['features'])} alert methods for the flooded areas.")
 
         # DOC: Return the updated building GeoDataFrame with the alert method and the alert method collection    
         return gdf_buildings, alert_method_collection
