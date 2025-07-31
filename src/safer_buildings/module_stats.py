@@ -11,6 +11,7 @@ from osgeo import gdal
 
 from . import _utils
 from . import _consts
+from . import module_flood
 
 from .module_log import Logger
 
@@ -65,20 +66,17 @@ def compute_wd_stats(
     waterdepth_ds = xr.where(waterdepth_ds > waterdepth_thresh, waterdepth_ds, np.nan).rio.write_crs(waterdepth_ds.rio.crs)
     
     if 'ring_geometry' not in buildings.columns:
-        Logger.debug(f"## Compute ring geometries around buildings (radius: {_consts._RING_BUFFER_M} meters) ...")
-        radius_buffer = _consts._RING_BUFFER_M * (1 if _utils.crs_is_projected(f'EPSG:{buildings.crs.to_epsg()}') else 1e-5)
-        buildings_rings = _utils.get_polygon_ring(buildings, radius_buffer)
-        buildings['ring_geometry'] = buildings_rings.geometry
+        buildings = module_flood.compute_ring_geometry(buildings, _consts._RING_BUFFER_M)
         
     if 'flood_bounds' not in buildings.columns:
-        buildings['flood_bounds'] = buildings.ring_geometry.apply(lambda rg: MultiPolygon(polygons=waterdepth_mask.cx[rg.bounds[0]:rg.bounds[2], rg.bounds[1]:rg.bounds[3]].geometry.tolist()))
+        buildings = module_flood.compute_flood_bounds(waterdepth_mask, buildings)
     
     if 'is_flooded' not in buildings.columns:
-        Logger.debug("## Get buildings with intersection between ring geometries and water depth polygons ...")
-        buildings['is_flooded'] = buildings.apply(lambda b: intersects(b.ring_geometry, b.flood_bounds) if not b.flood_bounds.is_empty else False, axis=1)
+        buildings = module_flood.compute_flooded_buildings(buildings)
     
     Logger.debug("## Compute intersection areas between building ring geometries and flood areas ...")    
-    buildings['flood_geometry'] = buildings.apply(lambda b: intersection(b.ring_geometry, b.flood_bounds) if b.is_flooded else b.flood_bounds, axis=1)
+    buildings['flood_geometry'] = buildings['ring_geometry'].intersection(buildings['flood_bounds'])
+    # buildings['flood_geometry'] = buildings.apply(lambda b: intersection(b.ring_geometry, b.flood_bounds) if b.is_flooded else b.flood_bounds, axis=1)    # REF: OLD CODE
     
     Logger.debug("## Extract sampling points from flood geometries ...")
     wd_res = np.array(waterdepth_ds.rio.resolution())
@@ -121,12 +119,12 @@ def compute_wd_summary(
         }
         if include_stats:
             _base_summary.update({
-                'flood_wd_min': float(np.nanmin(gdf['flood_wd_min'].values)),
-                'flood_wd_25perc': float(np.nanpercentile(gdf['flood_wd_25perc'].values, 25)),
-                'flood_wd_mean': float(np.nanmean(gdf['flood_wd_mean'].values)),
-                'flood_wd_median': float(np.nanmedian(gdf['flood_wd_median'].values)),
-                'flood_wd_75perc': float(np.nanpercentile(gdf['flood_wd_75perc'].values, 75)),
-                'flood_wd_max': float(np.nanmax(gdf['flood_wd_max'].values))
+                'flood_wd_min': float(np.nanmin(gdf['flood_wd_min'].values)) if len(list(filter(pd.notna, gdf['flood_wd_min'].values))) > 0 else np.nan,
+                'flood_wd_25perc': float(np.nanpercentile(gdf['flood_wd_25perc'].values, 25)) if len(list(filter(pd.notna, gdf['flood_wd_25perc'].values))) > 0 else np.nan,
+                'flood_wd_mean': float(np.nanmean(gdf['flood_wd_mean'].values)) if len(list(filter(pd.notna, gdf['flood_wd_mean'].values))) > 0 else np.nan,
+                'flood_wd_median': float(np.nanmedian(gdf['flood_wd_median'].values)) if len(list(filter(pd.notna, gdf['flood_wd_median'].values))) > 0 else np.nan,
+                'flood_wd_75perc': float(np.nanpercentile(gdf['flood_wd_75perc'].values, 75)) if len(list(filter(pd.notna, gdf['flood_wd_75perc'].values))) > 0 else np.nan,
+                'flood_wd_max': float(np.nanmax(gdf['flood_wd_max'].values)) if len(list(filter(pd.notna, gdf['flood_wd_max'].values))) > 0 else np.nan,
             })
         _base_summary = {k: v if not np.isnan(v) else None for k, v in _base_summary.items()}
         return _base_summary
@@ -135,9 +133,6 @@ def compute_wd_summary(
     
     class_column = None
     if summary_on is not None:
-        discarded_attrs = set(buildings.columns) - set(summary_on)
-        if len(discarded_attrs) > 0:
-            Logger.warning(f"## The following attributes will discarded from summary computation: {', '.join(discarded_attrs)}.")
         summary_on = [attr for attr in summary_on if attr in buildings.columns]
         if len(summary_on) == 0:
             Logger.warning("## No valid attributes provided for summary computation. Summary will be computed for all flooded buildings.")

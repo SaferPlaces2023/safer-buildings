@@ -1,6 +1,9 @@
 import logging
 
-logging.basicConfig(format="[%(levelname)-8s] %(message)s")
+logging.basicConfig(
+    format="[%(asctime)s] [%(levelname)-8s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 Logger = logging.getLogger(__name__)
 Logger.setLevel(logging.CRITICAL)
 

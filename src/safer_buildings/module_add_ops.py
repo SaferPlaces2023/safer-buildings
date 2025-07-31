@@ -223,7 +223,7 @@ def get_ops_by_provider(provider: str) -> dict[str | AdditionalOperation]:
     elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
         provider = _consts._VENEZIA_WFS_PROVIDER
         
-    return _ADD_OPS.get(provider, [])
+    return _ADD_OPS.get(provider, dict())
 
 
 def get_op_by_name(provider: str, op_name: str) -> AdditionalOperation | None:
