@@ -9,9 +9,21 @@ _RING_BUFFER_M = 5  # DOC: Default buffer radius in meters for building rings ar
 
 
 
+# DOC: List of providers for safer buildings
+
+_PROVIDERS = [
+    # _OVERTURE_PROVIDER,
+
+    # * ( [_RER_REST_PROVIDER] + RegioneEmiliaRomagnaLayers.provider_name.to_list() if RegioneEmiliaRomagnaLayers is not None else []),
+
+    # * ( [_VENEZIA_WFS_PROVIDER] + VeneziaLayers.provider_name.to_list() if VeneziaLayers is not None else []),
+]
+
+
 # DOC: Overture provider definition
 
 _OVERTURE_PROVIDER = 'OVERTURE'
+_PROVIDERS.append(_OVERTURE_PROVIDER)
 
 
 
@@ -23,7 +35,7 @@ _RER_REST_SERVICE_URL = "https://servizigis.regione.emilia-romagna.it/geoags/res
 
 RegioneEmiliaRomagnaLayers = None
 
-def _rer_list_rest_layers():
+def init_rer_rest_layers():
     params = {
         "where": "1=1",
         "outFields": "*",
@@ -40,6 +52,9 @@ def _rer_list_rest_layers():
     global RegioneEmiliaRomagnaLayers
     RegioneEmiliaRomagnaLayers = pd.DataFrame(data['layers']).sort_values('id').reset_index(drop=True)
     RegioneEmiliaRomagnaLayers['provider_name'] = RegioneEmiliaRomagnaLayers['id'].apply(lambda service_id: f'{_RER_REST_PROVIDER}/{service_id}')
+    global _PROVIDERS
+    _PROVIDERS.append(_RER_REST_PROVIDER)
+    _PROVIDERS.extend(RegioneEmiliaRomagnaLayers['provider_name'].to_list())
 
 
 
@@ -47,11 +62,11 @@ def _rer_list_rest_layers():
 
 _VENEZIA_WFS_PROVIDER = 'VENEZIA-WFS'
 _VENICE_BUILDING_POINTS_BUFFER_M = 20
-_VENEZIA_WFS_SERVICE_URL = "https://webgis2.cittametropolitana.ve.it/lizmap/index.php/lizmap/service?repository=in4safety&project=gecosistema_ogc&service=WFS&version=1.1.0"
+_VENEZIA_WFS_SERVICE_URL = "https://webgis2.cittametropolitana.ve.it/lizmap/index.php/lizmap/service?repository=in4safety&project=protezionecivile_ogc&service=WFS&version=1.1.0"
 
 VeneziaLayers = None
 
-def _venezia_list_wfs_layers():
+def init_venezia_wfs_layers():
     params = {
         'request': 'GetCapabilities',
     }
@@ -60,16 +75,7 @@ def _venezia_list_wfs_layers():
     global VeneziaLayers
     VeneziaLayers = pd.DataFrame(data['WFS_Capabilities']['FeatureTypeList']['FeatureType'])
     VeneziaLayers['provider_name'] = VeneziaLayers['Name'].apply(lambda name: f'{_VENEZIA_WFS_PROVIDER}/{name}')
-
-
-
-# DOC: List of providers for safer buildings
-
-_PROVIDERS = [
-    _OVERTURE_PROVIDER,
-
-    * ( [_RER_REST_PROVIDER] + RegioneEmiliaRomagnaLayers.provider_name.to_list() if RegioneEmiliaRomagnaLayers is not None else []),
-
-    * ( [_VENEZIA_WFS_PROVIDER] + VeneziaLayers.provider_name.to_list() if VeneziaLayers is not None else []),
-]
+    global _PROVIDERS
+    _PROVIDERS.append(_VENEZIA_WFS_PROVIDER)
+    _PROVIDERS.extend(VeneziaLayers['provider_name'].to_list())
 

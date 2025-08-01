@@ -172,7 +172,7 @@ def validate_args(
             raise TypeError("provider must be a string")
         if provider.startswith(_consts._RER_REST_PROVIDER):
             Logger.debug(f"## Init {_consts._RER_REST_PROVIDER} before validating the provider")
-            _consts._PROVIDERS.extend(_consts._rer_list_rest_layers())
+            _consts.init_rer_rest_layers()
             if provider != _consts._RER_REST_PROVIDER:
                 if len(provider.split('/')) < 2:
                     raise ValueError(f"{_consts._RER_REST_PROVIDER} provider must be '{_consts._RER_REST_PROVIDER}' or in the format '{_consts._RER_REST_PROVIDER}/<service_id>'. At least one service_id must be provided. MULTIPLE service_ids can be specified by '/' separated list, e.g. '{_consts._RER_REST_PROVIDER}/30/31/32'. Check provider argument ({_ARG_NAMES.PROVIDER})")
@@ -183,7 +183,7 @@ def validate_args(
                         raise ValueError(f"Invalid provider: {provider_service}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
         elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
             Logger.debug(f"## Init {_consts._VENEZIA_WFS_PROVIDER} before validating the provider")
-            _consts._PROVIDERS.extend(_consts._venezia_list_wfs_layers())
+            _consts.init_venezia_wfs_layers()
             if provider != _consts._VENEZIA_WFS_PROVIDER:
                 if len(provider.split('/')) < 2:
                     raise ValueError(f"{_consts._VENEZIA_WFS_PROVIDER} provider must be '{_consts._VENEZIA_WFS_PROVIDER}' or in the format '{_consts._VENEZIA_WFS_PROVIDER}/<feature_name>'. At least one feature_name must be provided. MULTIPLE feature_names can be specified by '/' separated list, e.g. '{_consts._VENEZIA_WFS_PROVIDER}/feature1/feature2'. Check provider argument ({_ARG_NAMES.PROVIDER})")

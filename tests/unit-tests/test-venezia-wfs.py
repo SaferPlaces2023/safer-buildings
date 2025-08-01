@@ -29,22 +29,22 @@ class Test(unittest.TestCase):
             "building": "s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
             "wd_thresh": None,
             "bbox": None,
-            "out": "s3://saferplaces.co/Venezia/SaferBuildings/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2.geojson",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
+            "out": "s3://saferplaces.co/Venezia/SaferBuildings/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2_nearby-pumps.geojson",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
             "t_srs": "EPSG:4326",
-            # "provider": f'{_consts._VENEZIA_WFS_PROVIDER}', #/v_pc_p0106011_scuole',
+            "provider": f'{_consts._VENEZIA_WFS_PROVIDER}', #/v_pc_p0106011_scuole',
             "filters": None,
             "only_flood": False,
             "stats": False,
             "summary": False,
             "summary_on": "subtype",    # None,
-            # "add_ops": {
-            #     module_add_ops.NearbyPumps.name: {
-            #         "wd_buffer": 0.0,
-            #     },
+            "add_ops": {
+                module_add_ops.NearbyPumps.name: {
+                    "wd_buffer": 0.0,
+                },
             #     module_add_ops.AlertMethod.name: {
             #         "wd_buffer": 0.0,
             #     }
-            # },
+            },
             "out_geojson": False,
 
             "version": False,
