@@ -23,12 +23,12 @@ def compute_ring_geometry(
     return buildings
 
 
-def compute_flood_bounds(
+def compute_flood_area(
     waterdepth_mask: gpd.GeoDataFrame,
     buildings: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
     """
-    Compute flood bounds by intersecting water depth polygons with buildings.
+    Compute flood area by intersecting water depth polygons with buildings.
     """
     Logger.debug("## Get buildings with intersection between ring geometries and water depth polygons ...")
     
@@ -38,7 +38,7 @@ def compute_flood_bounds(
         candidates = wd_tree.geometries.take(wd_tree.query(ring_geom)).tolist()
         return MultiPolygon(polygons=[g for g in candidates if ring_geom.intersects(g)])
     
-    buildings['flood_bounds'] = buildings['ring_geometry'].apply(get_intersecting_multipolygon)
+    buildings['flood_area'] = buildings['ring_geometry'].apply(get_intersecting_multipolygon)
     return buildings
     
 
@@ -46,12 +46,12 @@ def compute_flooded_buildings(
     buildings: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
     """
-    Check if buildings are flooded by intersecting ring geometries with flood bounds.
+    Check if buildings are flooded by intersecting ring geometries with flood area.
     """
-    Logger.debug("## Check if buildings are flooded by intersecting ring geometries with flood bounds ...")
+    Logger.debug("## Check if buildings are flooded by intersecting ring geometries with flood area ...")
     
-    not_empty = ~buildings['flood_bounds'].is_empty
-    intersects = buildings['ring_geometry'].intersects(buildings['flood_bounds'])
+    not_empty = ~buildings['flood_area'].is_empty
+    intersects = buildings['ring_geometry'].intersects(buildings['flood_area'])
     buildings['is_flooded'] = not_empty & intersects
 
     Logger.debug(f"## Found {len(buildings[buildings['is_flooded']])} flooded buildings out of {len(buildings)} total buildings.")
@@ -73,7 +73,7 @@ def get_flooded_buildings(
     
     buildings = compute_ring_geometry(buildings, _consts._RING_BUFFER_M)
     
-    buildings = compute_flood_bounds(waterdepth_mask, buildings)
+    buildings = compute_flood_area(waterdepth_mask, buildings)
     
     buildings = compute_flooded_buildings(buildings)
 

@@ -68,15 +68,14 @@ def compute_wd_stats(
     if 'ring_geometry' not in buildings.columns:
         buildings = module_flood.compute_ring_geometry(buildings, _consts._RING_BUFFER_M)
         
-    if 'flood_bounds' not in buildings.columns:
-        buildings = module_flood.compute_flood_bounds(waterdepth_mask, buildings)
+    if 'flood_area' not in buildings.columns:
+        buildings = module_flood.compute_flood_area(waterdepth_mask, buildings)
     
     if 'is_flooded' not in buildings.columns:
         buildings = module_flood.compute_flooded_buildings(buildings)
     
     Logger.debug("## Compute intersection areas between building ring geometries and flood areas ...")    
-    buildings['flood_geometry'] = buildings['ring_geometry'].intersection(buildings['flood_bounds'])
-    # buildings['flood_geometry'] = buildings.apply(lambda b: intersection(b.ring_geometry, b.flood_bounds) if b.is_flooded else b.flood_bounds, axis=1)    # REF: OLD CODE
+    buildings['flood_geometry'] = buildings['ring_geometry'].intersection(buildings['flood_area'])
     
     Logger.debug("## Extract sampling points from flood geometries ...")
     wd_res = np.array(waterdepth_ds.rio.resolution())

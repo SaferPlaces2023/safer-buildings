@@ -168,18 +168,16 @@ def compute_flood(
             Logger.debug("## Summary statistics computed for flooded buildings.") 
         
         # DOC: 7.1 — Drop other geometry columns
-        filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_bounds', 'flood_geometry', 'flood_coords'] if col in filtered_flooded_buildings.columns])
+        filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_area', 'flood_geometry', 'flood_coords'] if col in filtered_flooded_buildings.columns])
         
 
         # DOC: 8 — Run additional operations if any
         add_ops_output_data = dict()
         if add_ops is not None:
-            for op_name,op_args in add_ops.items():
-                Logger.debug(f'# Running additional operation: {op_name} with args: {op_args} ...')
-                op = module_add_ops.get_op_by_name(provider, op_name)
+            for op in add_ops:
+                Logger.debug(f'# Running additional operation: {op.name}...')
                 # DOC: Handle Additional Operation execution with its proper arguments
-                if op is module_add_ops.NearbyPumps:
-                    op = op(**op_args)
+                if op.name == module_add_ops.NearbyPumps.name:
                     nearby_pumps_output = op( ** {
                         'gdf_buildings': filtered_flooded_buildings,
                         'gdf_water_depth': waterdepth_polygonized,
@@ -187,9 +185,8 @@ def compute_flood(
                         't_srs': t_srs,
                     })
                     filtered_flooded_buildings, nearby_pumps_collection = nearby_pumps_output
-                    add_ops_output_data[op_name] = nearby_pumps_collection
-                elif op is module_add_ops.AlertMethod:
-                    op = op(**op_args)
+                    add_ops_output_data[op.name] = nearby_pumps_collection
+                elif op.name == module_add_ops.AlertMethod.name:
                     alert_method_output = op( ** {
                         'gdf_buildings': filtered_flooded_buildings,
                         'gdf_water_depth': waterdepth_polygonized,
@@ -197,7 +194,7 @@ def compute_flood(
                         't_srs': t_srs,
                     })
                     filtered_flooded_buildings, alert_method_collection = alert_method_output
-                    add_ops_output_data[op_name] = alert_method_collection
+                    add_ops_output_data[op.name] = alert_method_collection
 
 
         # DOC: 9 — Return results

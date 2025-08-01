@@ -21,6 +21,8 @@ _RER_REST_PROVIDER = 'RER-REST'
 _RER_BUILDING_POINTS_BUFFER_M = 20
 _RER_REST_SERVICE_URL = "https://servizigis.regione.emilia-romagna.it/geoags/rest/services/portale/saferplaces/MapServer"
 
+RegioneEmiliaRomagnaLayers = None
+
 def _rer_list_rest_layers():
     params = {
         "where": "1=1",
@@ -34,11 +36,10 @@ def _rer_list_rest_layers():
     }
     response = requests.get(_RER_REST_SERVICE_URL, params=params, headers=headers)
     data = response.json()
-    df_layers = pd.DataFrame(data['layers']).sort_values('id').reset_index(drop=True)
-    df_layers['provider_name'] = df_layers['id'].apply(lambda service_id: f'{_RER_REST_PROVIDER}/{service_id}')
-    return df_layers
-
-RegioneEmiliaRomagnaLayers = _rer_list_rest_layers()
+    
+    global RegioneEmiliaRomagnaLayers
+    RegioneEmiliaRomagnaLayers = pd.DataFrame(data['layers']).sort_values('id').reset_index(drop=True)
+    RegioneEmiliaRomagnaLayers['provider_name'] = RegioneEmiliaRomagnaLayers['id'].apply(lambda service_id: f'{_RER_REST_PROVIDER}/{service_id}')
 
 
 
@@ -48,29 +49,27 @@ _VENEZIA_WFS_PROVIDER = 'VENEZIA-WFS'
 _VENICE_BUILDING_POINTS_BUFFER_M = 20
 _VENEZIA_WFS_SERVICE_URL = "https://webgis2.cittametropolitana.ve.it/lizmap/index.php/lizmap/service?repository=in4safety&project=gecosistema_ogc&service=WFS&version=1.1.0"
 
+VeneziaLayers = None
+
 def _venezia_list_wfs_layers():
     params = {
         'request': 'GetCapabilities',
     }
     response = requests.get(_VENEZIA_WFS_SERVICE_URL, params=params, verify=False)
     data = xmltodict.parse(response.content.decode('utf-8'))
-    df_layers = pd.DataFrame(data['WFS_Capabilities']['FeatureTypeList']['FeatureType'])
-    df_layers['provider_name'] = df_layers['Name'].apply(lambda name: f'{_VENEZIA_WFS_PROVIDER}/{name}')
-    return df_layers
-
-VeneziaLayers = _venezia_list_wfs_layers()
+    global VeneziaLayers
+    VeneziaLayers = pd.DataFrame(data['WFS_Capabilities']['FeatureTypeList']['FeatureType'])
+    VeneziaLayers['provider_name'] = VeneziaLayers['Name'].apply(lambda name: f'{_VENEZIA_WFS_PROVIDER}/{name}')
 
 
 
 # DOC: List of providers for safer buildings
 
-_PROVIDERS = (
+_PROVIDERS = [
     _OVERTURE_PROVIDER,
 
-    _RER_REST_PROVIDER,
-    * RegioneEmiliaRomagnaLayers.provider_name.to_list(),
+    * ( [_RER_REST_PROVIDER] + RegioneEmiliaRomagnaLayers.provider_name.to_list() if RegioneEmiliaRomagnaLayers is not None else []),
 
-    _VENEZIA_WFS_PROVIDER,
-    * VeneziaLayers.provider_name.to_list(),
-)
+    * ( [_VENEZIA_WFS_PROVIDER] + VeneziaLayers.provider_name.to_list() if VeneziaLayers is not None else []),
+]
 

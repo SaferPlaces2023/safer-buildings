@@ -171,6 +171,8 @@ def validate_args(
         if type(provider) is not str:
             raise TypeError("provider must be a string")
         if provider.startswith(_consts._RER_REST_PROVIDER):
+            Logger.debug(f"## Init {_consts._RER_REST_PROVIDER} before validating the provider")
+            _consts._PROVIDERS.extend(_consts._rer_list_rest_layers())
             if provider != _consts._RER_REST_PROVIDER:
                 if len(provider.split('/')) < 2:
                     raise ValueError(f"{_consts._RER_REST_PROVIDER} provider must be '{_consts._RER_REST_PROVIDER}' or in the format '{_consts._RER_REST_PROVIDER}/<service_id>'. At least one service_id must be provided. MULTIPLE service_ids can be specified by '/' separated list, e.g. '{_consts._RER_REST_PROVIDER}/30/31/32'. Check provider argument ({_ARG_NAMES.PROVIDER})")
@@ -180,6 +182,8 @@ def validate_args(
                     if provider_service not in _consts._PROVIDERS:
                         raise ValueError(f"Invalid provider: {provider_service}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
         elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
+            Logger.debug(f"## Init {_consts._VENEZIA_WFS_PROVIDER} before validating the provider")
+            _consts._PROVIDERS.extend(_consts._venezia_list_wfs_layers())
             if provider != _consts._VENEZIA_WFS_PROVIDER:
                 if len(provider.split('/')) < 2:
                     raise ValueError(f"{_consts._VENEZIA_WFS_PROVIDER} provider must be '{_consts._VENEZIA_WFS_PROVIDER}' or in the format '{_consts._VENEZIA_WFS_PROVIDER}/<feature_name>'. At least one feature_name must be provided. MULTIPLE feature_names can be specified by '/' separated list, e.g. '{_consts._VENEZIA_WFS_PROVIDER}/feature1/feature2'. Check provider argument ({_ARG_NAMES.PROVIDER})")
@@ -235,15 +239,20 @@ def validate_args(
         compute_summary = True
 
     if add_ops is not None:
-        if provider is None:
-            raise ValueError(f"Additional operations must be provided with a provider. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
-        provider_add_ops = module_add_ops.get_ops_by_provider(provider)
         for op_name, op_args in add_ops.items():
-            if op_name not in provider_add_ops:
-                raise ValueError(f"Invalid additional operation: {op_name}. Valid operations for provider '{provider}' are: {list(provider_add_ops.keys())}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+            if op_name not in module_add_ops._ADD_OPS:
+                raise ValueError(f"Invalid additional operation: {op_name}. Valid operations are: {list(module_add_ops._ADD_OPS.keys())}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+            if not isinstance(op_args, dict):
+                raise TypeError(f"Arguments for additional operation '{op_name}' must be a dictionary. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+            if provider is not None and provider.split('/')[0] not in module_add_ops._ADD_OPS[op_name]['providers']:
+                raise ValueError(f"Additional operation '{op_name}' is not supported by provider '{provider}'. Supported providers are: {module_add_ops._ADD_OPS[op_name]['providers']}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
             for argn,_ in op_args.items():
-                if argn not in provider_add_ops[op_name].args:
-                    raise ValueError(f"Invalid argument '{argn}' for additional operation '{op_name}'. Valid arguments are: {provider_add_ops[op_name].args}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+                if not isinstance(argn, str):
+                    raise TypeError(f"Argument names for additional operation '{op_name}' must be strings. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+                if argn not in module_add_ops._ADD_OPS[op_name]['args']:
+                    raise ValueError(f"Invalid argument '{argn}' for additional operation '{op_name}'. Valid arguments are: {module_add_ops._ADD_OPS[op_name]['args']}. Check add_ops argument ({_ARG_NAMES.ADD_OPS})")
+        add_ops = [module_add_ops._ADD_OPS[op_name]['class'](**op_args) for op_name, op_args in add_ops.items()]
+            
     
     if out_geojson is None:
         out_geojson = False
@@ -264,7 +273,7 @@ def validate_args(
     Logger.debug(f"### Compute stats: {compute_stats}")
     Logger.debug(f"### Compute summary: {compute_summary}")
     Logger.debug(f"### Summary on: {summary_on}")
-    Logger.debug(f"### Additional operations: {add_ops}")
+    Logger.debug(f"### Additional operations: {[op.name for op in add_ops] if add_ops else None}")
     Logger.debug(f"### Output GeoJSON: {out_geojson}")
         
     return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson

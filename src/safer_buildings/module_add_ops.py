@@ -4,7 +4,8 @@ import datetime
 
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import box
+from shapely.geometry import box, MultiPolygon
+from shapely.strtree import STRtree
 
 from . import _consts, _utils
 from . import module_retriever
@@ -33,7 +34,7 @@ class NearbyPumps(AdditionalOperation):
     ]
 
     _pumps_layer_id = 'mv_risorse_p0109103_pompe'
-    _nearby_pumps_basic_attributes = ['id', 'modello', 'distance', 'indirizzo']
+    _nearby_pumps_basic_attributes = ['id', 'modello', 'indirizzo']
 
     def __init__(self, wd_buffer: float = 100.0):
         super().__init__(name=self.name)
@@ -56,8 +57,17 @@ class NearbyPumps(AdditionalOperation):
         # DOC: Convert CRS to Projected CRS (EPSG:3857) due to calculating distances
         gdf_buildings_3857 = gdf_buildings.to_crs(epsg=3857)
         gdf_wd_3857 = gdf_wd.to_crs(epsg=3857)
+        if self.wd_buffer > 0:
+            gdf_wd_3857['geometry'] = gdf_wd_3857.geometry.buffer(self.wd_buffer)
         gdf_pumps_3857 = gdf_pumps.to_crs(epsg=3857)
         gdf_pumps_3857['geometry'] = gdf_pumps_3857.centroid
+
+        # DOC: Build a search tree for pumps geometries        
+        pumps_3857_tree = STRtree(gdf_pumps_3857.geometry.values)
+        pump_geom_to_index = {id(g): i for i, g in enumerate(gdf_pumps_3857.geometry.values)}
+        def pumps_in_flood_area(wd_geom):
+            candidates = pumps_3857_tree.geometries.take(pumps_3857_tree.query(wd_geom)).tolist()
+            return gdf_pumps_3857.iloc[[pump_geom_to_index[id(g)] for g in candidates if wd_geom.intersects(g)]]
 
         # DOC: Foreach water depth area, retrieve (if any) the pump within the water depth area
         nearby_pumps_gdfs = []
@@ -65,8 +75,7 @@ class NearbyPumps(AdditionalOperation):
         for i_wd, wd in gdf_wd_3857.iterrows():
 
             # DOC: Get the pumps within the water depth area
-            wd_bounds = wd.geometry.buffer(self.wd_buffer).bounds if self.wd_buffer > 0 else wd.geometry.bounds
-            wd_pumps = gdf_pumps_3857.cx[wd_bounds[0]:wd_bounds[2], wd_bounds[1]:wd_bounds[3]]
+            wd_pumps = pumps_in_flood_area(wd.geometry)
             if wd_pumps.empty:
                 continue
             wd_pumps = wd_pumps.drop_duplicates(subset='id')
@@ -129,7 +138,7 @@ class AlertMethod(AdditionalOperation):
         gdf_buildings = kwargs['gdf_buildings']
         gdf_wd = kwargs['gdf_water_depth']
 
-        # DOC: Retieve the alert area and method (only related to flooding event) from the WFS provider
+        # DOC: Retrieve the alert area and method (only related to flooding event) from the WFS provider
         gdf_alert_area = module_retriever.retrieve_venezia_wfs(
             provider = f'{_consts._VENEZIA_WFS_PROVIDER}/{self._alert_area_layer_id}',
             bbox = kwargs['bbox']
@@ -143,9 +152,25 @@ class AlertMethod(AdditionalOperation):
         # DOC: Convert CRS to Projected CRS (EPSG:3857) due to geometry calculations
         gdf_buildings_3857 = gdf_buildings.to_crs(epsg=3857)
         gdf_wd_3857 = gdf_wd.to_crs(epsg=3857)
+        if self.wd_buffer > 0:
+            gdf_wd_3857['geometry'] = gdf_wd_3857.geometry.buffer(self.wd_buffer)
         gdf_alert_area_3857 = gdf_alert_area.to_crs(epsg=3857)
         gdf_alert_method_3857 = gdf_alert_method.to_crs(epsg=3857)
         gdf_alert_method_3857['geometry'] = gdf_alert_method_3857.centroid
+
+        # DOC: Build a search tree for buildings geometries
+        buildings_3857_tree = STRtree(gdf_buildings_3857.geometry.values)
+        building_geom_to_index = {id(g): i for i, g in enumerate(gdf_buildings_3857.geometry.values)}
+        def buildings_in_alert_area(alert_area_geom):
+            candidates = buildings_3857_tree.geometries.take(buildings_3857_tree.query(alert_area_geom)).tolist()
+            return gdf_buildings_3857.iloc[[building_geom_to_index[id(g)] for g in candidates if alert_area_geom.intersects(g)]]
+
+        # DOC: Build a search tree for alert area geometries
+        alert_area_3857_tree = STRtree(gdf_alert_area_3857.geometry.values)
+        alert_area_geom_to_index = {id(g): i for i, g in enumerate(gdf_alert_area_3857.geometry.values)}
+        def alert_area_in_flood_area(wd_geom):
+            candidates = alert_area_3857_tree.geometries.take(alert_area_3857_tree.query(wd_geom)).tolist()
+            return gdf_alert_area_3857.iloc[[alert_area_geom_to_index[id(g)] for g in candidates if wd_geom.intersects(g)]]
 
         # DOC: Foreach flood area, get the relative alert method
         alert_method_gdfs = []
@@ -153,13 +178,14 @@ class AlertMethod(AdditionalOperation):
         for i_wd, wd in gdf_wd_3857.iterrows():
             
             # DOC: Get the alert area within the water depth area
-            wd_bounds = wd.geometry.buffer(self.wd_buffer).bounds if self.wd_buffer > 0 else wd.geometry.bounds
-            wd_alert_area = gdf_alert_area_3857.cx[wd_bounds[0]:wd_bounds[2], wd_bounds[1]:wd_bounds[3]]
+            wd_alert_area = alert_area_in_flood_area(wd.geometry)
             if wd_alert_area.empty:
                 continue
+            wd_alert_area = wd_alert_area.drop_duplicates(subset='id')
+            wd_alert_area_bounds = wd_alert_area.total_bounds
 
             # DOC: Get the alert method within the water depth area
-            wd_alert_method = gdf_alert_method_3857.cx[wd_bounds[0]:wd_bounds[2], wd_bounds[1]:wd_bounds[3]]    # !!!: There is no an explicit relation between alert area and method, so we look at which method is contained in the alert area
+            wd_alert_method = gdf_alert_method_3857.cx[wd_alert_area_bounds[0]:wd_alert_area_bounds[2], wd_alert_area_bounds[1]:wd_alert_area_bounds[3]]    # !!!: There is no an explicit relation between alert area and method, so we look at which method is contained in the alert area
             if wd_alert_method.empty:
                 continue    # DOC: this should only when area is related to a not-flooding alert method or if method is not acoustic
 
@@ -170,7 +196,7 @@ class AlertMethod(AdditionalOperation):
             alert_method_gdfs.append(wd_alert_method)
 
             # DOC: Mark (flooded) buildings in the alert area with relative alert method
-            alert_buildings = gdf_buildings_3857[gdf_buildings_3857.geometry.intersects(wd_alert_area.geometry.union_all())]    
+            alert_buildings = buildings_in_alert_area(wd_alert_area.geometry.union_all())
             # ???: Filter only alert_buildings.is_flooded → (logically yes but maybe it is important to have the alert method for all buildings in the alert area)
             if alert_buildings.empty:
                 continue
@@ -201,38 +227,21 @@ class AlertMethod(AdditionalOperation):
 
 _ADD_OPS = {
 
-    # DOC: Additional operations for VENEZIA_WFS_PROVIDER
-    _consts._VENEZIA_WFS_PROVIDER: {
-        NearbyPumps.name: NearbyPumps,
-        AlertMethod.name: AlertMethod
+    NearbyPumps.name: {
+        'class': NearbyPumps,
+        'args': NearbyPumps.args,
+        'providers': [
+            _consts._VENEZIA_WFS_PROVIDER,
+            _consts._OVERTURE_PROVIDER
+        ]
+    },
+
+    AlertMethod.name: {
+        'class': AlertMethod,
+        'args': AlertMethod.args,
+        'providers': [
+            _consts._VENEZIA_WFS_PROVIDER,
+            _consts._OVERTURE_PROVIDER
+        ]
     }
-
 }
-
-
-def get_ops_by_provider(provider: str) -> dict[str | AdditionalOperation]:
-    """
-    Retrieve the additional operation by provider and operation name.
-    """
-    
-    if provider in _ADD_OPS:
-        return _ADD_OPS[provider]
-
-    if provider.startswith(_consts._RER_REST_PROVIDER):
-        provider = _consts._RER_REST_PROVIDER
-    elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
-        provider = _consts._VENEZIA_WFS_PROVIDER
-        
-    return _ADD_OPS.get(provider, dict())
-
-
-def get_op_by_name(provider: str, op_name: str) -> AdditionalOperation | None:
-    """
-    Retrieve the additional operation by provider and operation name.
-    """
-    
-    ops = get_ops_by_provider(provider)
-    if op_name in ops:
-        return ops[op_name]
-    
-    return None

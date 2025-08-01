@@ -10,6 +10,14 @@ class Test(unittest.TestCase):
     Test class for the greenamptr module.
     """
 
+    # TODO: Static files to be added in handling of Venezia WFS provider
+    # - DataFrame of WFS Services
+        # - Full builings: Overtoure OPPURE
+        # - Full buildings Venezia WFS provider (subset of the layers , ask fischietti which are the ones of interest) (in check-args crop to bbox)
+    # - Full Pumps gdf (in add ops-crop to bbox)
+    # - Full Alert area gdf (in add ops-crop to bbox)
+    # - Full Alert method gdf (in add ops-crop to bbox)
+
     def test_venezia_001(self):
         f"""
         CLI Command:
@@ -17,24 +25,24 @@ class Test(unittest.TestCase):
         """
         
         args = {
-            "water": "s3://saferplaces.co/Venezia/WaterDepthsv2/ICON_2I_SURFACE_PRESSURE_LEVELS_tp/2025-07-28/00-00/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h.tif", #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif",
+            "water": "s3://saferplaces.co/Venezia/WaterDepthsv2/ICON_2I_SURFACE_PRESSURE_LEVELS_tp/2025-07-28/00-00/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h.tif", #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif"
             "building": "s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
             "wd_thresh": None,
             "bbox": None,
             "out": "s3://saferplaces.co/Venezia/SaferBuildings/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2.geojson",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
             "t_srs": "EPSG:4326",
-            "provider": f'{_consts._VENEZIA_WFS_PROVIDER}',   #/v_pc_p0106011_scuole',
+            # "provider": f'{_consts._VENEZIA_WFS_PROVIDER}', #/v_pc_p0106011_scuole',
             "filters": None,
             "only_flood": False,
-            "stats": True,
-            "summary": True,
+            "stats": False,
+            "summary": False,
             "summary_on": "subtype",    # None,
             # "add_ops": {
             #     module_add_ops.NearbyPumps.name: {
-            #         "wd_buffer": 1000.0,
+            #         "wd_buffer": 0.0,
             #     },
             #     module_add_ops.AlertMethod.name: {
-            #         "wd_buffer": 100.0,
+            #         "wd_buffer": 0.0,
             #     }
             # },
             "out_geojson": False,
