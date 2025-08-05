@@ -200,7 +200,7 @@ def compute_flood(
         # DOC: 9 — Return results
         Logger.debug('# Preparing geojson output results ...')
         filtered_flooded_buildings = filtered_flooded_buildings.to_crs(t_srs)
-        filtered_flooded_buildings = _utils.df_dt_col_to_isoformat(filtered_flooded_buildings)
+        filtered_flooded_buildings = _utils.safe_json_df(filtered_flooded_buildings)
         feature_collection = filtered_flooded_buildings.to_geo_dict()
         feature_collection['metadata'] = {
             'provider': provider,
@@ -254,6 +254,11 @@ def compute_flood(
             'type': str(type(e)),
             ** trace_info
         }
+    
+    finally:
+        # DOC: 12 — Clean up temporary files created in this run istance
+        Logger.debug("# Cleaning up temporary files ...")
+        _utils.clean_temp_files(from_garbage_collection=True)
 
 
 # DOC: Main function to run the flooded buildings analysis from command line

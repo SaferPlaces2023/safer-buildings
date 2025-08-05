@@ -15,6 +15,7 @@ from shapely.ops import unary_union
 from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, box, Polygon, MultiPolygon
 import geopandas as gpd
 
+from ._consts import _GARBAGE_TEMP_FILES, collect_garbage_temp_file
 from .module_log import Logger
 from .module_version import get_version
 
@@ -43,8 +44,37 @@ def process_cli_args(
 
 
 
-def temp_filename(ext, prefix=''):
-    return os.path.join(_module_temp_dir, f'{prefix}__{datetime.datetime.now().strftime("%Y%m%d_%H%M%S.%f")}.{ext}')
+def temp_filename(ext, prefix='', add_to_garbage_collection=True):
+    temp_filepath = os.path.join(_module_temp_dir, f'{prefix}__{datetime.datetime.now().strftime("%Y%m%d_%H%M%S.%f")}.{ext}')
+    if add_to_garbage_collection:
+        collect_garbage_temp_file(temp_filepath)
+    return temp_filepath
+
+
+def clean_temp_files(from_garbage_collection=True):
+    """
+    Cleans up temporary files collected for garbage collection.
+    """
+    if from_garbage_collection:
+        n_files = len(_GARBAGE_TEMP_FILES)
+        for fp in _GARBAGE_TEMP_FILES:
+            try:
+                if os.path.exists(fp):
+                    os.remove(fp)
+            except Exception as e:
+                Logger.error(f"### Error removing temporary file {fp}: {e}")
+        _GARBAGE_TEMP_FILES.clear()
+        Logger.debug(f"## Removed {n_files} temporary files from garbage collection.")
+    else:
+        tmp_fps = [os.path.join(_module_temp_dir, f) for f in os.listdir(_module_temp_dir) if os.path.isfile(os.path.join(_module_temp_dir, f))]
+        n_files = len(tmp_fps)
+        for fp in tmp_fps:
+            try:
+                if os.path.exists(fp):
+                    os.remove(fp)
+            except Exception as e:
+                Logger.error(f"### Error removing temporary file {fp}: {e}")
+        Logger.debug(f"## Removed {n_files} temporary files from module temp directory: {_module_temp_dir}.")
 
 
 def normpath(pathname):
@@ -97,10 +127,21 @@ def forceext(pathname, newext):
     return normpath(pathname)
 
 
+def safe_json_df(df):
+    df = df_dt_col_to_isoformat(df)
+    df = df_nparr_col_to_value(df)
+    return df
+
 def df_dt_col_to_isoformat(df):
     for col in df.columns:
         if is_datetime64_any_dtype(df[col]):
             df[col] = df[col].apply(lambda x: x.isoformat() if pd.notnull(x) else None)
+    return df
+
+def df_nparr_col_to_value(df):
+    for col in df.columns:
+        if df[col].apply(lambda x: isinstance(x, np.ndarray) and x.ndim == 1 and x.size == 1).all():
+            df[col] = df[col].apply(lambda x: x.item())
     return df
 
 
