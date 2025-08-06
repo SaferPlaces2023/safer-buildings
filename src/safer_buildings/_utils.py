@@ -25,6 +25,26 @@ os.makedirs(_module_temp_dir, exist_ok=True)
 
 
 
+class CustomException(Exception):
+    """
+    Custom exception class for safer_buildings module.
+    """
+    def __init__(self, message, status_code, *args):
+        super().__init__(message, *args)
+        self.message = message
+        self.status_code = status_code
+
+    def from_exception(cls, e, status_code=500):
+        """
+        Create a CustomException from an existing exception.
+        """
+        if isinstance(e, CustomException):
+            return e
+        else:
+            return cls(str(e), status_code)
+
+
+
 def process_cli_args(
     version: bool = False,
     debug: bool = False,

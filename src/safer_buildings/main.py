@@ -3,6 +3,7 @@ import sys
 import json
 import click
 import time
+import pprint
 import logging
 import requests
 import datetime
@@ -19,11 +20,12 @@ from shapely.geometry import box, Point, Polygon, MultiPolygon, LineString, Mult
 import geopandas as gpd
 
 import leafmap
-
-from . import _utils, module_add_ops
-from .module_log import Logger, is_debug_mode
-from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_s3, module_version
+ 
+from . import _utils, module_s3, module_version
+from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_add_ops, module_outputs
 from .module_args import _ARG_NAMES
+from .module_log import Logger, is_debug_mode
+from .module_exception import CustomException, ArgsException, RetrieverException, FloodException, StatsException, AddOpsException, OutputsException
 
 from dotenv import load_dotenv
 load_dotenv()  
@@ -87,173 +89,190 @@ def compute_flood(
         
         
         # DOC: 1 — Validate args.
-        Logger.debug("# Validating input arguments ...")
-        validated_args = module_args.validate_args(
-            waterdepth_filename = water,
-            buildings_filename = building,
-            wd_thresh = wd_thresh,
-            bbox = bbox,
-            out = out,
-            t_srs = t_srs,
-            provider = provider,
-            feature_filters = filters,
-            only_flood = only_flood,
-            compute_stats = stats,
-            compute_summary = summary,
-            summary_on = summary_on,
-            add_ops = add_ops,
-            out_geojson = out_geojson,
-        )
-        waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson = validated_args
+        try:
+            Logger.debug("# Validating input arguments ...")
+            validated_args = module_args.validate_args(
+                waterdepth_filename = water,
+                buildings_filename = building,
+                wd_thresh = wd_thresh,
+                bbox = bbox,
+                out = out,
+                t_srs = t_srs,
+                provider = provider,
+                feature_filters = filters,
+                only_flood = only_flood,
+                compute_stats = stats,
+                compute_summary = summary,
+                summary_on = summary_on,
+                add_ops = add_ops,
+                out_geojson = out_geojson,
+            )
+            waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson = validated_args
+        except Exception as e:
+            raise ArgsException.from_exception(e)
         
         
         # DOC: 2 — Gather buildings
-        Logger.debug(f'# Gather buildings data ...')
-        provider_buildings = module_retriever.retrieve_buildings(
-            buildings_filename=buildings_filename,
-            bbox=bbox,
-            provider=provider
-        )
+        try:
+            Logger.debug(f'# Gather buildings data ...')
+            provider_buildings = module_retriever.retrieve_buildings(
+                buildings_filename=buildings_filename,
+                bbox=bbox,
+                provider=provider
+            )
+        except Exception as e:
+            raise RetrieverException.from_exception(e)
         
         
         # DOC: 3 — Polygonize waterdepth (compute one time and reuse for multiple providers)
-        Logger.debug('# Processing water depth data (raster to polygon) ...')
-        waterdepth_polygonized = _utils.polygonize_raster_valid_data(
-            raster_filename=waterdepth_filename,
-            band=1,
-            mask_builder=lambda wd: wd > wd_thresh,    # Significant water depth threshold
-            bbox=bbox
-        )
+        try:
+            Logger.debug('# Processing water depth data (raster to polygon) ...')
+            waterdepth_polygonized = module_flood.poligonyze_waterdepth(
+                waterdepth_filename = waterdepth_filename,
+                wd_threshold = wd_thresh,
+                bbox = bbox
+            )
+        except Exception as e:
+            raise FloodException.from_exception(e)
         
         
         # DOC: 4 — Intersect buildings with water depth
-        Logger.debug('# Intersecting buildings with water depth ...')
-        flooded_buildings = module_flood.get_flooded_buildings(
-            waterdepth_mask = waterdepth_polygonized,
-            buildings = provider_buildings
-        )
+        try:
+            Logger.debug('# Intersecting buildings with water depth ...')
+            flooded_buildings = module_flood.get_flooded_buildings(
+                waterdepth_mask = waterdepth_polygonized,
+                buildings = provider_buildings
+            )
+        except Exception as e:
+            raise FloodException.from_exception(e)
             
         
         # DOC: 5 — Filter features
-        Logger.debug('# Filtering features ...')
-        filtered_flooded_buildings = module_stats.filter_by_feature(
-            gdf = flooded_buildings,
-            feature_filters = feature_filters,
-            only_flood = only_flood
-        )
-        Logger.debug(f"## Filtered {len(filtered_flooded_buildings)} buildings out from {len(flooded_buildings)}.")
-        
+        try:
+            Logger.debug('# Filtering features ...')
+            flooded_buildings = module_stats.filter_by_feature(
+                gdf = flooded_buildings,
+                feature_filters = feature_filters,
+                only_flood = only_flood
+            )
+            Logger.debug(f"## Filtered {len(flooded_buildings)} buildings out from {len(flooded_buildings)}.")
+        except Exception as e:
+            raise StatsException.from_exception(e)
         
         # DOC: 6 — Compute water depth stats over flooded buildings
-        if compute_stats:
-            Logger.debug('# Computing water depth stats over flooded buildings ...')
-            filtered_flooded_buildings = module_stats.compute_wd_stats(
-                waterdepth_filename=waterdepth_filename,
-                waterdepth_mask=waterdepth_polygonized,
-                waterdepth_thresh=wd_thresh,
-                buildings=filtered_flooded_buildings
-            )
-            Logger.debug("## Water depth stats computed for flooded buildings.")
+        try:
+            if compute_stats:
+                Logger.debug('# Computing water depth stats over flooded buildings ...')
+                flooded_buildings = module_stats.compute_wd_stats(
+                    waterdepth_filename=waterdepth_filename,
+                    waterdepth_mask=waterdepth_polygonized,
+                    waterdepth_thresh=wd_thresh,
+                    buildings=flooded_buildings
+                )
+                Logger.debug("## Water depth stats computed for flooded buildings.")
+        except Exception as e:
+            raise StatsException.from_exception(e)
             
         
         # DOC: 7 — Compute summary if requested
-        if compute_summary:
-            Logger.debug('# Computing summary statistics for flooded buildings ...')
-            summary_stats = module_stats.compute_wd_summary(
-                buildings=filtered_flooded_buildings,
-                summary_on=summary_on,
-                provider=provider,
-                include_stats=compute_stats,
-            )
-            Logger.debug("## Summary statistics computed for flooded buildings.") 
+        try:
+            summary_stats_ouput_data = dict()
+            if compute_summary:
+                Logger.debug('# Computing summary statistics for flooded buildings ...')
+                summary_stats = module_stats.compute_wd_summary(
+                    buildings=flooded_buildings,
+                    summary_on=summary_on,
+                    provider=provider,
+                    include_stats=compute_stats,
+                )
+                summary_stats_ouput_data = { 'summary': summary_stats }
+                Logger.debug("## Summary statistics computed for flooded buildings.") 
+        except Exception as e:
+            raise StatsException.from_exception(e)
         
         # DOC: 7.1 — Drop other geometry columns
-        filtered_flooded_buildings = filtered_flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_area', 'flood_geometry', 'flood_coords'] if col in filtered_flooded_buildings.columns])
+        flooded_buildings = flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_area', 'flood_geometry', 'flood_coords'] if col in flooded_buildings.columns])
         
 
         # DOC: 8 — Run additional operations if any
-        add_ops_output_data = dict()
-        if add_ops is not None:
-            for op in add_ops:
-                Logger.debug(f'# Running additional operation: {op.name}...')
-                # DOC: Handle Additional Operation execution with its proper arguments
-                if op.name == module_add_ops.NearbyPumps.name:
-                    nearby_pumps_output = op( ** {
-                        'gdf_buildings': filtered_flooded_buildings,
-                        'gdf_water_depth': waterdepth_polygonized,
-                        'bbox': bbox,
-                        't_srs': t_srs,
-                    })
-                    filtered_flooded_buildings, nearby_pumps_collection = nearby_pumps_output
-                    add_ops_output_data[op.name] = nearby_pumps_collection
-                elif op.name == module_add_ops.AlertMethod.name:
-                    alert_method_output = op( ** {
-                        'gdf_buildings': filtered_flooded_buildings,
-                        'gdf_water_depth': waterdepth_polygonized,
-                        'bbox': bbox,
-                        't_srs': t_srs,
-                    })
-                    filtered_flooded_buildings, alert_method_collection = alert_method_output
-                    add_ops_output_data[op.name] = alert_method_collection
+        try:
+            add_ops_output_data = dict()
+            if add_ops is not None:
+                for op in add_ops:
+                    Logger.debug(f'# Running additional operation: {op.name}...')
+                    # DOC: Handle Additional Operation execution with its proper arguments
+                    if op.name == module_add_ops.NearbyPumps.name:
+                        nearby_pumps_output = op( ** {
+                            'gdf_buildings': flooded_buildings,
+                            'gdf_water_depth': waterdepth_polygonized,
+                            'bbox': bbox,
+                            't_srs': t_srs,
+                        })
+                        flooded_buildings, nearby_pumps_collection = nearby_pumps_output
+                        add_ops_output_data[op.name] = nearby_pumps_collection
+                    elif op.name == module_add_ops.AlertMethod.name:
+                        alert_method_output = op( ** {
+                            'gdf_buildings': flooded_buildings,
+                            'gdf_water_depth': waterdepth_polygonized,
+                            'bbox': bbox,
+                            't_srs': t_srs,
+                        })
+                        flooded_buildings, alert_method_collection = alert_method_output
+                        add_ops_output_data[op.name] = alert_method_collection
+        except Exception as e:
+            raise AddOpsException.from_exception(e)
 
 
         # DOC: 9 — Return results
-        Logger.debug('# Preparing geojson output results ...')
-        filtered_flooded_buildings = filtered_flooded_buildings.to_crs(t_srs)
-        filtered_flooded_buildings = _utils.safe_json_df(filtered_flooded_buildings)
-        feature_collection = filtered_flooded_buildings.to_geo_dict()
-        feature_collection['metadata'] = {
-            'provider': provider,
-            'buildings_count': len(filtered_flooded_buildings),
-            'flooded_buildings_count': int(filtered_flooded_buildings['is_flooded'].sum()),
-            'summary': summary_stats if compute_summary else None,
-            ** add_ops_output_data
-        }
-        feature_collection['crs'] = {
-            "type": "name",
-            "properties": {
-                "name": f"urn:ogc:def:crs:{t_srs.replace(':', '::')}"  # REF: https://gist.github.com/sgillies/1233327 lines 256:271
-            }
-        }
-        Logger.debug(f"## Buildings feature collection prepared with {len(feature_collection['features']) if 'features' in feature_collection else 0} features.")
+        try:
+            Logger.debug('# Preparing geojson output results ...')
+            feature_collection = module_outputs.prepare_feture_collection(
+                flooded_buildings = flooded_buildings,
+                t_srs = t_srs,
+                provider = provider,
+                summary_stats = summary_stats_ouput_data,
+                add_ops_output_data = add_ops_output_data
+            )   
+        except Exception as e:
+            raise OutputsException.from_exception(e)     
             
         
         # DOC: 10 — Save results to file
-        Logger.debug(f'# Saving results to {out} ...')
-        if out.startswith('s3://'):
-            out_tmp = _utils.temp_filename(ext='geojson', prefix='safer-buildings_out')
-            with open(out_tmp, 'w') as f:
-                json.dump(feature_collection, f, indent=2)
-            module_s3.s3_upload(filename = out_tmp, uri = out)    
-        else:
-            with open(out, 'w') as f:
-                json.dump(feature_collection, f, indent=2)
-            
-        
-        Logger.debug(f"## Results saved to {out}")
+        try:
+            Logger.debug(f'# Saving results to {out} ...')
+            module_outputs.save_results(
+                feature_collection = feature_collection,
+                out = out
+            )
+        except Exception as e:
+            raise OutputsException.from_exception(e)
         
         
         # DOC: 11 — Return output
-        output = feature_collection
-        if not out_geojson:
-            geojson_ref_key = 's3_uri' if out.startswith('s3://') else 'geojson_file'
-            summary_info = {'summary': output['metadata']['summary']} if compute_summary else dict()
-            output = {
-                geojson_ref_key: out,
-                ** summary_info
-            }
+        try: 
+            Logger.debug('# Returning output ...')
+            output = module_outputs.prepare_output(
+                feature_collection = feature_collection,
+                out = out,
+                out_geojson = out_geojson,
+                compute_summary = compute_summary
+            )
+        except Exception as e:
+            raise OutputsException.from_exception(e)
         
         return output
 
+    except CustomException as e:
+        exception_info = e.to_dict()
+        Logger.error(f"\nException occurred: \n{pprint.pformat(exception_info)}\n")
+        return exception_info
+    
     except Exception as e:
-        Logger.error(f"An error occurred during the flooded buildings analysis: {e}")
-        Logger.debug(traceback.format_exc())
-        trace_info = { 'traceback' : traceback.format_exc() } if is_debug_mode() else dict()
-        return {
-            'error': str(e),
-            'type': str(type(e)),
-            ** trace_info
-        }
+        custom_ex = CustomException.from_exception(e)
+        custom_ex.message = f"An error occurred during the flooded buildings analysis: {custom_ex.message}"
+        exception_info = custom_ex.to_dict()
+        Logger.error(f"\nException occurred: \n{pprint.pformat(exception_info)}\n")
+        return exception_info
     
     finally:
         # DOC: 12 — Clean up temporary files created in this run istance

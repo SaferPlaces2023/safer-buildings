@@ -7,17 +7,13 @@ import pandas as pd
 
 _RING_BUFFER_M = 5  # DOC: Default buffer radius in meters for building rings around flooded buildings.
 
+_ERROR_CODE_KEY = 'status_code'
+_OUTPUT_SUCCESS_CODE = 200
 
 
 # DOC: List of providers for safer buildings
 
-_PROVIDERS = [
-    # _OVERTURE_PROVIDER,
-
-    # * ( [_RER_REST_PROVIDER] + RegioneEmiliaRomagnaLayers.provider_name.to_list() if RegioneEmiliaRomagnaLayers is not None else []),
-
-    # * ( [_VENEZIA_WFS_PROVIDER] + VeneziaLayers.provider_name.to_list() if VeneziaLayers is not None else []),
-]
+_PROVIDERS = [ ]
 
 
 # DOC: Overture provider definition

@@ -1,6 +1,7 @@
 import os
 import unittest
 
+from safer_buildings import _consts
 from safer_buildings import compute_flood as main_python
 from safer_buildings import module_s3, filesystem
 
@@ -37,7 +38,12 @@ class Test(unittest.TestCase):
         }
 
     
-        main_python( ** args )
+        result = main_python( ** args )
+
+        try:
+            self.assertEqual(result.pop(_consts._ERROR_CODE_KEY, _consts._OUTPUT_SUCCESS_CODE), _consts._OUTPUT_SUCCESS_CODE)
+        except:
+            print(f"Test 'test_vimercate_001' failed. Error: {result}")
         
         fileout = module_s3.s3_download(
             uri = args['out'],

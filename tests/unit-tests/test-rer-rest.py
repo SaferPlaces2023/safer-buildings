@@ -37,8 +37,13 @@ class Test(unittest.TestCase):
         }
 
     
-        main_python( ** args )
-        
+        result = main_python( ** args )
+
+        try:
+            self.assertEqual(result.pop(_consts._ERROR_CODE_KEY, _consts._OUTPUT_SUCCESS_CODE), _consts._OUTPUT_SUCCESS_CODE)
+        except:
+            print(f"Test 'test_vimercate_001' failed. Error: {result}")
+
         fileout = module_s3.s3_download(
             uri = args['out'],
             fileout = filesystem.tempfilename(suffix='.geojson', prefix='test-rimini-001-')

@@ -9,6 +9,20 @@ from . import _consts
 from .module_log import Logger
 
 
+def poligonyze_waterdepth(
+    waterdepth_filename: str,
+    wd_threshold: float,
+    bbox: gpd.GeoDataFrame | None = None
+) -> gpd.GeoDataFrame:
+    waterdepth_polygonized = _utils.polygonize_raster_valid_data(
+        raster_filename = waterdepth_filename,
+        band = 1,
+        mask_builder = lambda wd: wd > wd_threshold,    # Significant water depth threshold
+        bbox = bbox
+    )
+    return waterdepth_polygonized
+
+
 def compute_ring_geometry(
     buildings: gpd.GeoDataFrame,
     radius_buffer: float

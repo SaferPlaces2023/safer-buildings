@@ -33,8 +33,6 @@ def retrieve_buildings(
     
     else:
         Logger.debug(f"## Retrieving buildings data from provider: {provider} ...")
-            
-        buildings_filename = _utils.temp_filename(ext='shp', prefix=f"{provider.replace('/','-')}_buildings")
         
         if provider == _consts._OVERTURE_PROVIDER:
             provider_buildings = retrieve_overture(bbox)
@@ -43,9 +41,7 @@ def retrieve_buildings(
         elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
             provider_buildings = retrieve_venezia_wfs(provider, bbox) 
         else:
-            raise ValueError(f"Provider '{provider}' is not supported. Available providers are: {_consts._PROVIDERS}.")
-
-        Logger.debug(f"### Buildings data retrieved from {provider} saved at {buildings_filename}. (Found {len(provider_buildings)} buildings)")        
+            raise ValueError(f"Provider '{provider}' is not supported. Available providers are: {_consts._PROVIDERS}.")      
         
     return provider_buildings
 
@@ -143,6 +139,8 @@ def retrieve_rer_rest(provider, bbox):
     buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
 
+    Logger.debug(f"### Retrieved {len(provider_buildings)} features from {provider} service. Saved at {buildings_filename}.")
+
     return provider_buildings
 
 
@@ -169,5 +167,7 @@ def retrieve_venezia_wfs(provider, bbox):
 
     buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
+
+    Logger.debug(f"### Retrieved {len(provider_buildings)} features from {provider} service. Saved at {buildings_filename}.")
 
     return provider_buildings
