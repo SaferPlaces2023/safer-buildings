@@ -145,7 +145,7 @@ def retrieve_rer_rest(provider, bbox):
     return provider_buildings
 
 
-def retrieve_venezia_wfs(provider, bbox):
+def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
     service_ids = list(provider.split('/')[1:]) if provider != _consts._VENEZIA_WFS_PROVIDER else _consts.VeneziaLayers.Name.unique().tolist()
     gdf_layers = []
     bounds = bbox.total_bounds
@@ -165,7 +165,8 @@ def retrieve_venezia_wfs(provider, bbox):
         Logger.debug(f"### Retrieved {len(wfs_gdf)} features from {service_id} {_consts._VENEZIA_WFS_PROVIDER} service.")
 
     provider_buildings = pd.concat(gdf_layers, ignore_index=True)
-    provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
+    if buffer_points:
+        provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
 
     buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.rename(columns={'fid': '_fid'}, inplace=True, errors='ignore')

@@ -34,7 +34,8 @@ class NearbyPumps(AdditionalOperation):
     ]
 
     _pumps_layer_id = 'mv_risorse_p0109103_pompe'
-    _nearby_pumps_basic_attributes = ['id', 'modello', 'indirizzo']
+    _pumps_identifier = 'gid'
+    _nearby_pumps_basic_attributes = ['id', '_fid', 'gid', 'modello', 'indirizzo']
 
     def __init__(self, wd_buffer: float = 100.0):
         super().__init__(name=self.name)
@@ -51,7 +52,8 @@ class NearbyPumps(AdditionalOperation):
         # DOC: Retrieve the pumps from the WFS provider
         gdf_pumps = module_retriever.retrieve_venezia_wfs(
             provider = f'{_consts._VENEZIA_WFS_PROVIDER}/{self._pumps_layer_id}',
-            bbox = kwargs['bbox']
+            bbox = kwargs['bbox'],
+            buffer_points=False 
         )
 
         # DOC: Convert CRS to Projected CRS (EPSG:3857) due to calculating distances
@@ -61,6 +63,8 @@ class NearbyPumps(AdditionalOperation):
             gdf_wd_3857['geometry'] = gdf_wd_3857.geometry.buffer(self.wd_buffer)
         gdf_pumps_3857 = gdf_pumps.to_crs(epsg=3857)
         gdf_pumps_3857['geometry'] = gdf_pumps_3857.centroid
+        # DOC: Convert the pumps GeoDataFrame to the target CRS
+        gdf_pumps_tsrs  = gdf_pumps.to_crs(kwargs['t_srs'])
 
         # DOC: Build a search tree for pumps geometries        
         pumps_3857_tree = STRtree(gdf_pumps_3857.geometry.values)
@@ -70,7 +74,8 @@ class NearbyPumps(AdditionalOperation):
             return gdf_pumps_3857.iloc[[pump_geom_to_index[id(g)] for g in candidates if wd_geom.intersects(g)]]
 
         # DOC: Foreach water depth area, retrieve (if any) the pump within the water depth area
-        nearby_pumps_gdfs = []
+        Logger.debug(f"### Retrieving nearby pumps for {len(gdf_wd_3857)} water depth areas.")
+        nearby_pumps_identifiers = set()
         gdf_buildings['nearby_pumps'] = [list() for _ in range(len(gdf_buildings))]
         for i_wd, wd in gdf_wd_3857.iterrows():
 
@@ -78,27 +83,27 @@ class NearbyPumps(AdditionalOperation):
             wd_pumps = pumps_in_flood_area(wd.geometry)
             if wd_pumps.empty:
                 continue
-            wd_pumps = wd_pumps.drop_duplicates(subset='id')
+            wd_pumps = wd_pumps.drop_duplicates(subset=self._pumps_identifier)
 
-            # DOC: Collect the nearby pumps GeoDataFrame
-            wd_pumps = wd_pumps.to_crs(kwargs['t_srs'])
-            nearby_pumps_gdfs.append(wd_pumps)
+            # DOC: Collect the nearby pumps GeoDataFrame in the target CRS
+            wd_pumps = gdf_pumps_tsrs.loc[wd_pumps.index]
+            nearby_pumps_identifiers.update(wd_pumps[self._pumps_identifier].to_list())
 
             # DOC: Mark buildings in the water depth area affected by retrieved nearby pumps
             affected_buildings = gdf_buildings_3857[gdf_buildings_3857.geometry.intersects(wd.geometry)]
             if affected_buildings.empty:
                 continue
-            wd_pumps['location'] = wd_pumps['geometry'].apply(lambda geom: [geom.x, geom.y])
+            wd_pumps['location'] = wd_pumps['geometry'].apply(lambda geom: [geom.centroid.x, geom.centroid.y])
             wd_pumps = pd.DataFrame(wd_pumps.drop(columns='geometry'))
             wd_pumps = wd_pumps[self._nearby_pumps_basic_attributes + ['location']]
             wd_pumps = _utils.df_dt_col_to_isoformat(wd_pumps)
             wd_pumps = json.loads(wd_pumps.to_json(orient='records'))
-            for i_building, _ in affected_buildings.iterrows():
-                gdf_buildings.at[i_building, 'nearby_pumps'] = wd_pumps
+            affected_building_index = affected_buildings.index.to_list()
+            gdf_buildings.loc[affected_building_index, 'nearby_pumps'] = pd.Series([wd_pumps for _ in range(len(affected_building_index))], index=affected_building_index)
 
         # DOC: If nearby pumps were found, build a feature collection of them
-        if nearby_pumps_gdfs:
-            nearby_pumps_gdf = pd.concat(nearby_pumps_gdfs, ignore_index=True).drop_duplicates(subset='id').reset_index(drop=True)
+        if len(nearby_pumps_identifiers) > 0:
+            nearby_pumps_gdf = gdf_pumps_tsrs[gdf_pumps_tsrs[self._pumps_identifier].isin(nearby_pumps_identifiers)]
             nearby_pumps_gdf = _utils.df_dt_col_to_isoformat(nearby_pumps_gdf)
             nearby_pumps_collection = nearby_pumps_gdf.to_geo_dict()
         else:
@@ -123,8 +128,10 @@ class AlertMethod(AdditionalOperation):
     ]
 
     _alert_area_layer_id = 'v_pc_p0103011_allertamento'
+    _alert_area_identifier = '_fid'
     _alert_method_layer_id = 'v_pc_p0103013_allertamento'
-    _alert_method_basic_attributes = ['id', 'denom', 'indirizzo', 'strumento_t']
+    _alert_method_identifier = '_fid'
+    _alert_method_basic_attributes = ['id', '_fid', 'denom', 'indirizzo', 'strumento_t']
 
     def __init__(self, wd_buffer: float = 100.0):
         super().__init__(name=self.name)
@@ -148,6 +155,8 @@ class AlertMethod(AdditionalOperation):
             bbox = kwargs['bbox']
         )
         gdf_alert_method = gdf_alert_method[(gdf_alert_method['allagament_t']=='Sì') | (gdf_alert_method['r_altro']=='Acqua Alta')]
+        # DOC: Convert the alert mtehod GeoDataFrame to the target CRS
+        gdf_aert_method_tsrs = gdf_alert_method.to_crs(kwargs['t_srs'])
 
         # DOC: Convert CRS to Projected CRS (EPSG:3857) due to geometry calculations
         gdf_buildings_3857 = gdf_buildings.to_crs(epsg=3857)
@@ -171,9 +180,17 @@ class AlertMethod(AdditionalOperation):
         def alert_area_in_flood_area(wd_geom):
             candidates = alert_area_3857_tree.geometries.take(alert_area_3857_tree.query(wd_geom)).tolist()
             return gdf_alert_area_3857.iloc[[alert_area_geom_to_index[id(g)] for g in candidates if wd_geom.intersects(g)]]
+        
+        # DOC: Build a search tree for alert method geometries
+        alert_method_3857_tree = STRtree(gdf_alert_method_3857.geometry.values)
+        alert_method_geom_to_index = {id(g): i for i, g in enumerate(gdf_alert_method_3857.geometry.values)}
+        def alert_method_in_alert_area(alert_area_geom):
+            candidates = alert_method_3857_tree.geometries.take(alert_method_3857_tree.query(alert_area_geom)).tolist()
+            return gdf_alert_method_3857.iloc[[alert_method_geom_to_index[id(g)] for g in candidates if alert_area_geom.intersects(g)]]
 
         # DOC: Foreach flood area, get the relative alert method
-        alert_method_gdfs = []
+        Logger.debug(f"### Retrieving alert methods for {len(gdf_wd_3857)} water depth areas.")
+        alert_method_identifiers = set()
         gdf_buildings['alert_method'] = [list() for _ in range(len(gdf_buildings))]
         for i_wd, wd in gdf_wd_3857.iterrows():
             
@@ -181,36 +198,35 @@ class AlertMethod(AdditionalOperation):
             wd_alert_area = alert_area_in_flood_area(wd.geometry)
             if wd_alert_area.empty:
                 continue
-            wd_alert_area = wd_alert_area.drop_duplicates(subset='id')
-            wd_alert_area_bounds = wd_alert_area.total_bounds
+            wd_alert_area = wd_alert_area.drop_duplicates(subset=self._alert_area_identifier)
 
             # DOC: Get the alert method within the water depth area
-            wd_alert_method = gdf_alert_method_3857.cx[wd_alert_area_bounds[0]:wd_alert_area_bounds[2], wd_alert_area_bounds[1]:wd_alert_area_bounds[3]]    # !!!: There is no an explicit relation between alert area and method, so we look at which method is contained in the alert area
+            wd_alert_method = alert_method_in_alert_area(wd.geometry)   # !!!: There is no an explicit relation between alert area and method, so we look at which method is contained in the alert area
             if wd_alert_method.empty:
                 continue    # DOC: this should only when area is related to a not-flooding alert method or if method is not acoustic
 
-            wd_alert_method = wd_alert_method.drop_duplicates(subset='id')
+            wd_alert_method = wd_alert_method.drop_duplicates(subset=self._alert_method_identifier)
             
             # DOC: Collect the alert method GeoDataFrame
-            wd_alert_method = wd_alert_method.to_crs(kwargs['t_srs'])
-            alert_method_gdfs.append(wd_alert_method)
+            wd_alert_method = gdf_aert_method_tsrs.loc[wd_alert_method.index]
+            alert_method_identifiers.update(wd_alert_method[self._alert_method_identifier].to_list())
 
             # DOC: Mark (flooded) buildings in the alert area with relative alert method
             alert_buildings = buildings_in_alert_area(wd_alert_area.geometry.union_all())
             # ???: Filter only alert_buildings.is_flooded → (logically yes but maybe it is important to have the alert method for all buildings in the alert area)
             if alert_buildings.empty:
                 continue
-            wd_alert_method['location'] = wd_alert_method['geometry'].apply(lambda geom: [geom.x, geom.y])
+            wd_alert_method['location'] = wd_alert_method['geometry'].apply(lambda geom: [geom.centroid.x, geom.centroid.y])
             wd_alert_method = pd.DataFrame(wd_alert_method.drop(columns='geometry'))
             wd_alert_method = wd_alert_method[self._alert_method_basic_attributes + ['location']]
             wd_alert_method = _utils.df_dt_col_to_isoformat(wd_alert_method)
             wd_alert_method = json.loads(wd_alert_method.to_json(orient='records'))
-            for i_building, _ in alert_buildings.iterrows():
-                gdf_buildings.at[i_building, 'alert_method'] = wd_alert_method
+            alert_building_index = alert_buildings.index.to_list()
+            gdf_buildings.loc[alert_building_index, 'alert_method'] = pd.Series([wd_alert_method for _ in range(len(alert_building_index))], index=alert_building_index)
 
         # DOC: If alert methods weere founde, build a feature colection of them
-        if alert_method_gdfs:
-            alert_method_gdf = pd.concat(alert_method_gdfs, ignore_index=True).drop_duplicates(subset='id').reset_index(drop=True)
+        if len(alert_method_identifiers) > 0:
+            alert_method_gdf = gdf_aert_method_tsrs[gdf_aert_method_tsrs[self._alert_method_identifier].isin(alert_method_identifiers)]
             alert_method_gdf = _utils.df_dt_col_to_isoformat(alert_method_gdf)
             alert_method_collection = alert_method_gdf.to_geo_dict()
         else:
