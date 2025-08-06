@@ -1,3 +1,4 @@
+import urllib3
 import requests
 import xmltodict
 import pandas as pd
@@ -63,6 +64,8 @@ _VENEZIA_WFS_SERVICE_URL = "https://webgis2.cittametropolitana.ve.it/lizmap/inde
 VeneziaLayers = None
 
 def init_venezia_wfs_layers():
+    # DOC: Disable SSL warnings for insecure requests (only for VENEZIA WFS that needs verify parameter set to False)    
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     params = {
         'request': 'GetCapabilities',
     }

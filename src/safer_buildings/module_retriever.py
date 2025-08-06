@@ -136,8 +136,9 @@ def retrieve_rer_rest(provider, bbox):
     provider_buildings = overture_intersection(provider_buildings)
     provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._RER_BUILDING_POINTS_BUFFER_M)
     
-    buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
-    provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
+    buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}")
+    provider_buildings.rename(columns={'fid': '_fid'}, inplace=True, errors='ignore')
+    provider_buildings.to_file(buildings_filename, driver='GPKG', index=False)
 
     Logger.debug(f"### Retrieved {len(provider_buildings)} features from {provider} service. Saved at {buildings_filename}.")
 
@@ -153,10 +154,11 @@ def retrieve_venezia_wfs(provider, bbox):
             "request":"GetFeature",
             "TYPENAME": service_id,
             "outputFormat": "application/json",
+            "srsName": _consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].DefaultSRS # ???: srsname = _consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].DefaultSRS, allow_override=True` but data from server are sent in 4326
         }
         response_data = requests.get(_consts._VENEZIA_WFS_SERVICE_URL, params=params, verify=False)
         geojson_io = io.StringIO(response_data.text)
-        wfs_gdf = gpd.read_file(geojson_io, crs=_consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].DefaultSRS).to_crs(bbox.crs)
+        wfs_gdf = gpd.read_file(geojson_io).set_crs(crs="EPSG:4326").to_crs(bbox.crs)
         wfs_gdf = wfs_gdf.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         wfs_gdf['service_id'] = service_id
         gdf_layers.append(wfs_gdf)
@@ -165,8 +167,9 @@ def retrieve_venezia_wfs(provider, bbox):
     provider_buildings = pd.concat(gdf_layers, ignore_index=True)
     provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
 
-    buildings_filename = _utils.temp_filename(ext='shp', prefix=f"safer-buildings_{provider.replace('/','-')}")
-    provider_buildings.to_file(buildings_filename, driver='ESRI Shapefile', index=False)
+    buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}")
+    provider_buildings.rename(columns={'fid': '_fid'}, inplace=True, errors='ignore')
+    provider_buildings.to_file(buildings_filename, driver='GPKG', index=False)
 
     Logger.debug(f"### Retrieved {len(provider_buildings)} features from {provider} service. Saved at {buildings_filename}.")
 
