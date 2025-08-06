@@ -82,6 +82,7 @@ def clean_temp_files(from_garbage_collection=True):
                 if os.path.exists(fp):
                     os.remove(fp)
             except Exception as e:
+                n_files -= 1
                 Logger.error(f"### Error removing temporary file {fp}: {e}")
         _GARBAGE_TEMP_FILES.clear()
         Logger.debug(f"## Removed {n_files} temporary files from garbage collection.")
@@ -93,6 +94,7 @@ def clean_temp_files(from_garbage_collection=True):
                 if os.path.exists(fp):
                     os.remove(fp)
             except Exception as e:
+                n_files -= 1
                 Logger.error(f"### Error removing temporary file {fp}: {e}")
         Logger.debug(f"## Removed {n_files} temporary files from module temp directory: {_module_temp_dir}.")
 
