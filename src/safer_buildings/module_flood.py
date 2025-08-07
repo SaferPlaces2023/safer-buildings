@@ -1,3 +1,4 @@
+import pandas as pd
 import geopandas as gpd
 from shapely.geometry import MultiPolygon
 from shapely import intersects
@@ -46,15 +47,27 @@ def compute_flood_area(
     """
     Logger.debug("## Get buildings with intersection between ring geometries and water depth polygons ...")
     
-    wd_tree = STRtree(waterdepth_gdf.geometry.values)
+    wd_tree = STRtree(waterdepth_gdf.to_crs('EPSG:3857').geometry.values)
 
-    def get_intersecting_multipolygon(ring_geom):
-        candidates = wd_tree.geometries.take(wd_tree.query(ring_geom)).tolist()
-        return MultiPolygon(polygons=[g for g in candidates if ring_geom.intersects(g)])
+    # def get_intersecting_multipolygon(ring_geom):
+    #     candidates = wd_tree.geometries.take(wd_tree.query(ring_geom)).tolist()
+    #     return MultiPolygon(polygons=[g for g in candidates if ring_geom.intersects(g)])
     
-    buildings['flood_area'] = buildings['ring_geometry'].apply(get_intersecting_multipolygon)
+    # buildings['flood_area'] = buildings['ring_geometry'].apply(get_intersecting_multipolygon)
 
     # !!!: GO with query by vector all in one!
+    building_wd_query = wd_tree.query(buildings['ring_geometry'].to_crs('EPSG:3857').values, predicate='intersects')
+    buildings['flood_area'] = gpd.GeoSeries([MultiPolygon(polygons=[]) for _ in range(len(buildings))], crs="EPSG:3857")
+    
+    buildings_flood_area = pd.DataFrame(building_wd_query.T, columns=['bld_idxs', 'wd_idxs']).groupby('bld_idxs').agg(
+        lambda wd_idxs: MultiPolygon(polygons=waterdepth_gdf.loc[wd_idxs].geometry.values)
+    ).reset_index().rename(columns={'bld_idxs': 'bld_idx', 'wd_idxs': 'geometry'})
+    buildings_flood_area = gpd.GeoDataFrame(buildings_flood_area, geometry='geometry', crs="EPSG:3857").to_crs(buildings.crs)
+    
+    buildings.loc[buildings_flood_area['bld_idx'].to_list(), 'flood_area'] = gpd.GeoSeries(
+        index = buildings_flood_area['bld_idx'].to_list(),
+        data = buildings_flood_area['geometry'].values
+    )
 
     return buildings
     
@@ -67,10 +80,8 @@ def compute_flooded_buildings(
     """
     Logger.debug("## Check if buildings are flooded by intersecting ring geometries with flood area ...")
     
-    not_empty = ~buildings['flood_area'].is_empty
-    intersects = buildings['ring_geometry'].intersects(buildings['flood_area'])
-    buildings['is_flooded'] = not_empty & intersects
-
+    buildings['is_flooded'] = ~buildings['flood_area'].is_empty
+    
     Logger.debug(f"## Found {len(buildings[buildings['is_flooded']])} flooded buildings out of {len(buildings)} total buildings.")
     
     return buildings

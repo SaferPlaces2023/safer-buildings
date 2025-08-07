@@ -90,69 +90,45 @@ class NearbyPumps(AdditionalOperation):
             left_index=True, right_on='pump_idx', how='left'
         ).drop(columns='pump_idx')
         gdf_pumps.set_index('wd_idx', inplace=True)
-        Logger.debug(f"## Found {len(gdf_pumps)} nearby pumps for the flooded areas.")
+        Logger.debug(f"## Found {len(gdf_pumps[self._pumps_identifier].unique())} nearby pumps for the flooded areas.")
 
         # DOC: Find wd area for each building
         buildings_in_wd_query = wd_3857_tree.query(gdf_buildings['geometry_3857'], predicate='intersects', distance=0)
         bld_wd_idxs = pd.DataFrame(buildings_in_wd_query.T, columns=['building_idx', 'wd_idxs']).groupby('building_idx').agg(list).reset_index()
 
-        # region: con join
+        # DOC: Join the buildings with related water depth areas indexes
         gdf_buildings = pd.merge(
             gdf_buildings, bld_wd_idxs,
             left_index=True, right_on='building_idx', how='left'
         ).drop(columns='building_idx')
+        # DOC: Explode the buildings GeoDataFrame to have one row per building (duplicates) and water depth area (become single)
         gdf_buildings_pumps = gdf_buildings.explode('wd_idxs')
+        # DOC: Join the buildings with pumps that share the same water depth area
+        gdf_pumps.rename(columns={col: f'{col}_pump' for col in gdf_pumps.columns}, inplace=True)
         gdf_buildings_pumps = pd.merge(
-            gdf_buildings_pumps, gdf_pumps[self._nearby_pumps_basic_attributes + ['geometry_3857']],
-            left_on='wd_idxs', right_index=True, how='left',
-            suffixes=('', '_pump')
+            gdf_buildings_pumps, gdf_pumps[[f'{attr}_pump' for attr in self._nearby_pumps_basic_attributes] + ['geometry_3857_pump']],
+            left_on='wd_idxs', right_index=True, how='left'
         ).drop(columns='wd_idxs')
-        gdf_buildings_pumps = gdf_buildings_pumps[gdf_buildings_pumps['geometry_3857'].notna()]
-        Logger.debug('##### joined')
+        
+        # DOC: Calculate the distance between each building and its related pumps (then filter by max_distance)
+        gdf_buildings_pumps = gdf_buildings_pumps[gdf_buildings_pumps['geometry_3857_pump'].notna()]
         gdf_buildings_pumps['distance_pump'] = distance(gdf_buildings_pumps['geometry_3857'].values, gdf_buildings_pumps['geometry_3857_pump'].values)
-        Logger.debug('##### distance calculated')
         gdf_buildings_pumps = gdf_buildings_pumps[gdf_buildings_pumps['distance_pump'] <= self.max_distance]
-        gdf_buildings_pumps = gdf_buildings_pumps.groupby(gdf_buildings_pumps.index).agg({
-            col: 'first' for col in gdf_buildings_pumps.columns if not col.endswith('_pump')
-        } | {
-            col: list for col in gdf_buildings_pumps.columns if col.endswith('_pump')
-        }).rename(columns={
-            col: col.replace('_pump', '') for col in gdf_buildings_pumps.columns if col.endswith('_pump')
-        }).drop(columns=['geometry_3857'])
-        buildings_nearby_pumps = gdf_buildings_pumps.to_dict(orient='records')
+        
+        # DOC: Foreach building, collect the nearby pumps in a list
+        gdf_buildings_pumps = gdf_buildings_pumps[[col for col in gdf_buildings_pumps.columns if col.endswith('_pump')]].drop(columns=['geometry_3857_pump'])
+        gdf_buildings_pumps.rename(columns={col: col.replace('_pump', '') for col in gdf_buildings_pumps.columns}, inplace=True)
+        gdf_buildings_pumps = gdf_buildings_pumps.groupby(gdf_buildings_pumps.index).agg(list)
+        buildings_nearby_pumps = gdf_buildings_pumps.apply(lambda row: pd.DataFrame(row.to_dict()).to_dict(orient='records'), axis=1).to_list()
+        # DOC: Add the nearby pumps to the buildings GeoDataFrame       
         gdf_buildings['nearby_pumps'] = [list() for _ in range(len(gdf_buildings))]
         gdf_buildings.loc[gdf_buildings_pumps.index, 'nearby_pumps'] = pd.Series(buildings_nearby_pumps, index=gdf_buildings_pumps.index)
-
-
-        # endregion: con join
-
-        # bld_wd_idxs.set_index('building_idx', inplace=True)
-        # # DOC: For each building, assign the nearby pumps selected for the building water depth area
-        # def get_building_pumps(building):
-        #     if building.Index not in bld_wd_idxs.index:
-        #         return []
-        #     wd_idxs = list(set(bld_wd_idxs.loc[building.Index]['wd_idxs']) & set(gdf_pumps.index))
-        #     if len(wd_idxs) < 1:
-        #         return []
-        #     bld_pumps = gdf_pumps.loc[wd_idxs]
-        #     if bld_pumps.empty:
-        #         return []
-        #     bld_pumps['distance'] = bld_pumps['geometry_3857'].distance(building.geometry_3857)
-        #     bld_pumps = bld_pumps[bld_pumps['distance'] <= self.max_distance]
-        #     if bld_pumps.empty:
-        #         return []
-        #     bld_pumps = bld_pumps[self._nearby_pumps_basic_attributes].to_dict(orient='records')
-        #     return bld_pumps
-        # gdf_buildings['nearby_pumps'] = [
-        #     get_building_pumps(buidling)
-        #     for buidling in tqdm(
-        #         gdf_buildings.itertuples(), 
-        #         total=len(gdf_buildings), mininterval=0.5, disable=not is_debug_mode(), desc="Assign nearby pumps to each building"
-        #     )
-        # ]
+        gdf_buildings.drop(columns=['geometry_3857'], inplace=True)
 
         # DOC: Convert the nearby pumps GeoDataFrame to the target CRS
+        gdf_pumps.rename(columns={col: col.replace('_pump', '') for col in gdf_pumps.columns}, inplace=True)
         gdf_pumps = gdf_pumps.reset_index(drop=True).drop(columns=['geometry_3857'])
+        gdf_pumps.drop_duplicates(subset=self._pumps_identifier, inplace=True)
         gdf_pumps = _utils.df_dt_col_to_isoformat(gdf_pumps)
         nearby_pumps_collection = gdf_pumps.to_geo_dict()
         Logger.debug(f"## Buildings with nearby pumps: {gdf_buildings[gdf_buildings['is_flooded']]['nearby_pumps'].apply(lambda npumps: len(npumps)>0).sum()} out of {len(gdf_buildings[gdf_buildings['is_flooded']])} total flooded buildings.")

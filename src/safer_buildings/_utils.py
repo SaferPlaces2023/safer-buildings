@@ -232,9 +232,7 @@ def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     buffers = buffer(gdf_rings.geometry.values, ring_buffer)
     rings = difference(buffers, gdf_rings.geometry.values)
 
-
-    # gdf_rings['geometry'] = gdf_rings.buffer(ring_buffer).geometry
-    gdf_rings['geometry'] = rings #gdf_rings['geometry'].difference(gdf.to_crs(epsg=3857).geometry)
+    gdf_rings['geometry'] = rings
     gdf_rings.to_crs(epsg=gdf.crs.to_epsg(), inplace=True)
     return gdf_rings
 
