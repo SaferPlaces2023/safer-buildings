@@ -28,8 +28,28 @@ class AdditionalOperation():
 
 # DOC: This is for VENEZIA_WFS_PROVIDER (Find the nearest pump to a flooded building)
 class NearbyPumps(AdditionalOperation):
+    
+    """
+    This operation retrieves the nearby pumps for flooded buildings based on water depth areas. 
+    It finds pumps within a specified distance from the water depth areas.
+    The operation uses the `mv_risorse_p0109103_pompe` layer from the VENEZIA WFS provider to find pumps.
+    The avaliable pumps for each flooded area are then associated with the related flooded buildings, and the distance to each pump from them is calculated
+    """
 
     name = 'nearby_pumps'
+    
+    description = {
+        'en': """This operation retrieves the nearby pumps for flooded buildings based on water depth areas. 
+        It finds pumps within a specified distance from the water depth areas.
+        The operation uses the `mv_risorse_p0109103_pompe` layer from the VENEZIA WFS provider to find pumps.
+        The avaliable pumps for each flooded area are then associated with the related flooded buildings, and the distance to each pump from them is calculated.""",
+        
+        'it': """Questa operazione recupera le pompe vicine per gli edifici allagati basandosi sulle aree di profondità dell'acqua.
+        Trova le pompe entro una distanza specificata dalle aree di profondità dell'acqua.
+        L'operazione utilizza il layer `mv_risorse_p0109103_pompe` dal provider VENEZIA WFS per trovare le pompe.
+        Le pompe disponibili per ciascuna area allagata vengono quindi associate agli edifici allagati correlati, e viene calcolata la distanza da ciascuna pompa.""",
+    }
+    
     args = [
          # DOC: The buffer to use around water depth areas (in meters). Default is 100.0 meters.
         'wd_buffer',
