@@ -12,6 +12,7 @@ from osgeo import gdal, osr, ogr
 
 from shapely.wkt import loads
 from shapely.ops import unary_union
+from shapely import buffer, difference
 from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, box, Polygon, MultiPolygon
 import geopandas as gpd
 
@@ -227,8 +228,13 @@ def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     """
     gdf_rings = gdf.copy()
     gdf_rings.to_crs(epsg=3857, inplace=True)
-    gdf_rings['geometry'] = gdf_rings.buffer(ring_buffer).geometry
-    gdf_rings['geometry'] = gdf_rings['geometry'].difference(gdf.to_crs(epsg=3857).geometry)
+
+    buffers = buffer(gdf_rings.geometry.values, ring_buffer)
+    rings = difference(buffers, gdf_rings.geometry.values)
+
+
+    # gdf_rings['geometry'] = gdf_rings.buffer(ring_buffer).geometry
+    gdf_rings['geometry'] = rings #gdf_rings['geometry'].difference(gdf.to_crs(epsg=3857).geometry)
     gdf_rings.to_crs(epsg=gdf.crs.to_epsg(), inplace=True)
     return gdf_rings
 

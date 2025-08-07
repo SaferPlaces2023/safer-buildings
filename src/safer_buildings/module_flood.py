@@ -38,7 +38,7 @@ def compute_ring_geometry(
 
 
 def compute_flood_area(
-    waterdepth_mask: gpd.GeoDataFrame,
+    waterdepth_gdf: gpd.GeoDataFrame,
     buildings: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
     """
@@ -46,13 +46,16 @@ def compute_flood_area(
     """
     Logger.debug("## Get buildings with intersection between ring geometries and water depth polygons ...")
     
-    wd_tree = STRtree(waterdepth_mask.geometry.values)
+    wd_tree = STRtree(waterdepth_gdf.geometry.values)
 
     def get_intersecting_multipolygon(ring_geom):
         candidates = wd_tree.geometries.take(wd_tree.query(ring_geom)).tolist()
         return MultiPolygon(polygons=[g for g in candidates if ring_geom.intersects(g)])
     
     buildings['flood_area'] = buildings['ring_geometry'].apply(get_intersecting_multipolygon)
+
+    # !!!: GO with query by vector all in one!
+
     return buildings
     
 
@@ -75,7 +78,7 @@ def compute_flooded_buildings(
 
 
 def get_flooded_buildings(
-    waterdepth_mask: gpd.GeoDataFrame | None,
+    waterdepth_gdf: gpd.GeoDataFrame | None,
     buildings: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
     
@@ -83,11 +86,11 @@ def get_flooded_buildings(
     Get flooded buildings by intersecting water depth polygons with buildings.
     """
     
-    buildings = _utils.ensure_geodataframe_crs(buildings, _utils.get_geodataframe_crs(waterdepth_mask))
+    buildings = _utils.ensure_geodataframe_crs(buildings, _utils.get_geodataframe_crs(waterdepth_gdf))
     
     buildings = compute_ring_geometry(buildings, _consts._RING_BUFFER_M)
     
-    buildings = compute_flood_area(waterdepth_mask, buildings)
+    buildings = compute_flood_area(waterdepth_gdf, buildings)
     
     buildings = compute_flooded_buildings(buildings)
 
