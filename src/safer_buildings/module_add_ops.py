@@ -49,7 +49,7 @@ class NearbyPumps(AdditionalOperation):
         self.max_distance = float(max_distance) if type(max_distance) is str else max_distance
 
 
-    def opt(self, **kwargs):
+    def __call__(self, **kwargs):
 
         # DOC: Extract kwargs values
         gdf_buildings = kwargs['gdf_buildings']
@@ -135,84 +135,6 @@ class NearbyPumps(AdditionalOperation):
 
         # DOC: Return the updated GeoDataFrame with the nearest pumps and the nearby pumps collection
         return gdf_buildings, nearby_pumps_collection
-
-
-
-
-
-    def __call__(self, **kwargs):
-
-        return self.opt(**kwargs)
-
-        gdf_buildings = kwargs['gdf_buildings']
-        gdf_wd = kwargs['gdf_water_depth']
-
-        # DOC: Retrieve the pumps from the WFS provider
-        gdf_pumps = module_retriever.retrieve_venezia_wfs(
-            provider = f'{_consts._VENEZIA_WFS_PROVIDER}/{self._pumps_layer_id}',
-            bbox = kwargs['bbox'],
-            buffer_points=False 
-        )
-
-        # DOC: Convert CRS to Projected CRS (EPSG:3857) due to calculating distances
-        gdf_buildings_3857 = gdf_buildings.to_crs(epsg=3857)
-        gdf_wd_3857 = gdf_wd.to_crs(epsg=3857)
-        if self.wd_buffer > 0:
-            gdf_wd_3857['geometry'] = gdf_wd_3857.geometry.buffer(self.wd_buffer)
-        gdf_pumps_3857 = gdf_pumps.to_crs(epsg=3857)
-        gdf_pumps_3857['geometry'] = gdf_pumps_3857.centroid
-        # DOC: Convert the pumps GeoDataFrame to the target CRS
-        gdf_pumps_tsrs  = gdf_pumps.to_crs(kwargs['t_srs'])
-
-        # DOC: Build a search tree for pumps geometries        
-        pumps_3857_tree = STRtree(gdf_pumps_3857.geometry.values)
-        pump_geom_to_index = {id(g): i for i, g in enumerate(gdf_pumps_3857.geometry.values)}
-        def pumps_in_flood_area(wd_geom):
-            candidates = pumps_3857_tree.geometries.take(pumps_3857_tree.query(wd_geom)).tolist()
-            return gdf_pumps_3857.iloc[[pump_geom_to_index[id(g)] for g in candidates if wd_geom.intersects(g)]]
-
-        # DOC: Foreach water depth area, retrieve (if any) the pump within the water depth area
-        Logger.debug(f"### Retrieving nearby pumps for {len(gdf_wd_3857)} water depth areas.")
-        nearby_pumps_identifiers = set()
-        gdf_buildings['nearby_pumps'] = [list() for _ in range(len(gdf_buildings))]
-        # for i_wd, wd in gdf_wd_3857.iterrows():
-        for i_wd, wd in tqdm(gdf_wd_3857.iterrows(), total=len(gdf_wd_3857), mininterval=0.5, disable=not is_debug_mode(), desc="Search for each flooded area"):
-
-            # DOC: Get the pumps within the water depth area
-            wd_pumps = pumps_in_flood_area(wd.geometry)
-            if wd_pumps.empty:
-                continue
-            wd_pumps = wd_pumps.drop_duplicates(subset=self._pumps_identifier)
-
-            # DOC: Collect the nearby pumps GeoDataFrame in the target CRS
-            wd_pumps = gdf_pumps_tsrs.loc[wd_pumps.index]
-            nearby_pumps_identifiers.update(wd_pumps[self._pumps_identifier].to_list())
-
-            # DOC: Mark buildings in the water depth area affected by retrieved nearby pumps
-            affected_buildings = gdf_buildings_3857[gdf_buildings_3857.geometry.intersects(wd.geometry)]
-            if affected_buildings.empty:
-                continue
-            wd_pumps['location'] = wd_pumps['geometry'].apply(lambda geom: [geom.centroid.x, geom.centroid.y])
-            wd_pumps = pd.DataFrame(wd_pumps.drop(columns='geometry'))
-            wd_pumps = wd_pumps[self._nearby_pumps_basic_attributes + ['location']]
-            wd_pumps = _utils.df_dt_col_to_isoformat(wd_pumps)
-            wd_pumps = json.loads(wd_pumps.to_json(orient='records'))
-            affected_building_index = affected_buildings.index.to_list()
-            gdf_buildings.loc[affected_building_index, 'nearby_pumps'] = pd.Series([wd_pumps for _ in range(len(affected_building_index))], index=affected_building_index)
-
-        # DOC: If nearby pumps were found, build a feature collection of them
-        if len(nearby_pumps_identifiers) > 0:
-            nearby_pumps_gdf = gdf_pumps_tsrs[gdf_pumps_tsrs[self._pumps_identifier].isin(nearby_pumps_identifiers)]
-            nearby_pumps_gdf = _utils.df_dt_col_to_isoformat(nearby_pumps_gdf)
-            nearby_pumps_collection = nearby_pumps_gdf.to_geo_dict()
-        else:
-            nearby_pumps_collection = { 'type': 'FeatureCollection', 'features': [] }
-
-        Logger.debug(f"## Found {len(nearby_pumps_collection['features'])} nearby pumps for the flooded areas.")
-        
-        # DOC: Return the updated GeoDataFrame with the nearest pumps and the nearby pumps collection
-        return gdf_buildings, nearby_pumps_collection
-
             
 
 
