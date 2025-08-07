@@ -38,7 +38,7 @@ class NearbyPumps(AdditionalOperation):
 
     _pumps_layer_id = 'mv_risorse_p0109103_pompe'
     _pumps_identifier = 'gid'
-    _nearby_pumps_basic_attributes = ['id', '_fid', 'gid', 'modello', 'indirizzo', 'longitude', 'latitude']
+    _nearby_pumps_basic_attributes = ['id', '_fid', 'gid', 'modello', 'indirizzo']
 
     def __init__(self, wd_buffer: float = 100.0, max_distance: float = 100.0):
         super().__init__(name=self.name)
@@ -47,7 +47,6 @@ class NearbyPumps(AdditionalOperation):
     def _configure(self, wd_buffer: float = 100.0, max_distance: float = 100.0):
         self.wd_buffer = float(wd_buffer) if type(wd_buffer) is str else wd_buffer
         self.max_distance = float(max_distance) if type(max_distance) is str else max_distance
-
 
     def __call__(self, **kwargs):
 
@@ -69,6 +68,7 @@ class NearbyPumps(AdditionalOperation):
         gdf_pumps = gdf_pumps.to_crs(t_srs)
         gdf_pumps['longitude'] = gdf_pumps.geometry.x
         gdf_pumps['latitude'] = gdf_pumps.geometry.y
+        self._nearby_pumps_basic_attributes.extend(['longitude', 'latitude'])
 
         # DOC: Convert CRS to Projected CRS (EPSG:3857) due to calculating distances
         gdf_buildings['geometry_3857'] = gdf_buildings.to_crs(epsg=3857).geometry
