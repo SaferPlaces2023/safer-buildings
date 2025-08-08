@@ -34,17 +34,17 @@ class Test(unittest.TestCase):
             "provider": f'{_consts._VENEZIA_WFS_PROVIDER}', #/v_pc_p0106011_scuole',
             "filters": None,
             "only_flood": False,
-            "stats": False,
-            "summary": False,
+            "stats": True,
+            "summary": True,
             "summary_on": "subtype",    # None,
             "add_ops": {
                 module_add_ops.NearbyPumps.name: {
                     # "wd_buffer": 2000.0,
                     "max_distance": 2000.0,  # DOC: Set the maximum distance for nearby pumps
                 },
-                # module_add_ops.AlertMethod.name: {
-                #     "wd_buffer": 2000.0,
-                # }
+                module_add_ops.AlertMethod.name: {
+                    "wd_buffer": 200.0,
+                }
             },
             "out_geojson": False,
 

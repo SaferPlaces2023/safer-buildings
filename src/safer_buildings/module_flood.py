@@ -49,13 +49,6 @@ def compute_flood_area(
     
     wd_tree = STRtree(waterdepth_gdf.to_crs('EPSG:3857').geometry.values)
 
-    # def get_intersecting_multipolygon(ring_geom):
-    #     candidates = wd_tree.geometries.take(wd_tree.query(ring_geom)).tolist()
-    #     return MultiPolygon(polygons=[g for g in candidates if ring_geom.intersects(g)])
-    
-    # buildings['flood_area'] = buildings['ring_geometry'].apply(get_intersecting_multipolygon)
-
-    # !!!: GO with query by vector all in one!
     building_wd_query = wd_tree.query(buildings['ring_geometry'].to_crs('EPSG:3857').values, predicate='intersects')
     buildings['flood_area'] = gpd.GeoSeries([MultiPolygon(polygons=[]) for _ in range(len(buildings))], crs="EPSG:3857")
     
