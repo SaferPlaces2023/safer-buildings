@@ -8,9 +8,8 @@ from osgeo import osr
 from shapely.geometry import box
 import geopandas as gpd
 
-from . import _utils, module_add_ops
-from . import _consts
-from . import module_s3
+from . import _utils, _consts, filesystem
+from . import module_add_ops, module_s3
 
 from .module_log import Logger
 
@@ -107,12 +106,12 @@ def validate_args(
             raise FileNotFoundError(f"Buildings file not found: {buildings_filename}. Check buildings arguments ({_ARG_NAMES.BUILDINGS})")
         if buildings_filename.startswith('s3://'):
             buildings_filename_tmp = _utils.temp_filename(ext = _utils.justext(buildings_filename), prefix='safer-buildings_buildings')
-            if buildings_filename.endswith('.shp'):
-                add_ext = ['.shx', '.dbf', '.prj', '.cpg']
-                for ext in add_ext:
-                    dl_status = module_s3.s3_download(uri = buildings_filename.replace('.shp', ext), fileout=buildings_filename_tmp.replace('.shp', ext))
-                    if dl_status is None:
-                        raise FileNotFoundError(f"Failed to download buildings files from S3: {buildings_filename}. Check buildings arguments ({_ARG_NAMES.BUILDINGS})")
+            buildings_filename_uri_aux = filesystem.get_aux_files(buildings_filename)
+            buildings_filename_tmp_aux = filesystem.get_aux_files(buildings_filename_tmp)
+            for bf_uri_aux, bf_tmp_aux in zip(buildings_filename_uri_aux, buildings_filename_tmp_aux):
+                dl_status = module_s3.s3_download(uri = bf_uri_aux, fileout=bf_tmp_aux)
+                if dl_status is None:
+                    raise FileNotFoundError(f"Failed to download buildings auxiliary files from S3: {bf_uri_aux}. Check buildings arguments ({_ARG_NAMES.BUILDINGS})")
             dl_status = module_s3.s3_download(uri = buildings_filename, fileout = buildings_filename_tmp)
             if dl_status is None:
                 raise FileNotFoundError(f"Failed to download buildings file from S3: {buildings_filename}. Check buildings arguments ({_ARG_NAMES.BUILDINGS})")
@@ -140,9 +139,11 @@ def validate_args(
     
     if out is not None:
         if type(out) is not str:
-            raise TypeError(f"out must be a string. Check output file argument ({_ARG_NAMES.OUT})") 
-        if not (out.endswith('.geojson') or out.endswith('.json')):
-            raise ValueError(f"out must be a file path ending with .geojson or .json. Check output file argument ({_ARG_NAMES.OUT})")
+            raise TypeError(f"out must be a string. Check output file argument ({_ARG_NAMES.OUT})")
+        _valid_out_format = {'geojson', 'json', 'shp', 'gpkg'}
+        out_ext = filesystem.justext(out)
+        if out_ext not in _valid_out_format:
+            raise ValueError(f"out must be a file path ending with one of the following extensions: {', '.join(_valid_out_format)}. Check output file argument ({_ARG_NAMES.OUT})")
     else:
         out = os.path.join(os.getcwd(), f"safer_buildings_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.geojson")
         

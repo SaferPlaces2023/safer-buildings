@@ -31,6 +31,18 @@ import tempfile
 from .module_log import Logger
 
 
+_AUX_FILES = {
+    'shp': ['shx', 'dbf', 'prj', 'cpg'],
+}
+
+_GPD_DRIVERS = lambda ext : {
+    'geojson': 'GeoJSON',
+    'json': 'GeoJSON',
+    'shp': 'ESRI Shapefile',
+    'gpkg': 'GPKG'
+}.get(ext.lower())
+
+
 def now():
     return datetime.datetime.now()
 
@@ -52,7 +64,9 @@ def normpath(pathname):
     """
     if not pathname:
         return ""
-    return os.path.normpath(pathname.replace("\\", "/")).replace("\\", "/")
+    normp = os.path.normpath(pathname.replace("\\", "/")).replace("\\", "/")
+    normp = f's3://{normp.lstrip("s3:").lstrip("/")}' if normp.startswith("s3:") else normp
+    return normp
 
 
 def juststem(pathname):
@@ -98,6 +112,17 @@ def forceext(pathname, newext):
     root, _ = os.path.splitext(normpath(pathname))
     pathname = root + ("." + newext if len(newext.strip()) > 0 else "")
     return normpath(pathname)
+
+
+def get_aux_files(pathname):
+    """
+    get_aux_files
+    """
+    pathname = normpath(pathname)
+    ext = justext(pathname)
+    aux_exts = _AUX_FILES.get(ext, [])
+    return [forceext(pathname, aux_ext) for aux_ext in aux_exts]
+
 
 def strtofile(text, filename, append=False):
     """
