@@ -140,7 +140,7 @@ def compute_flood(
         try:
             Logger.debug('# Intersecting buildings with water depth ...')
             flooded_buildings = module_flood.get_flooded_buildings(
-                waterdepth_mask = waterdepth_polygonized,
+                waterdepth_gdf = waterdepth_polygonized,
                 buildings = provider_buildings
             )
         except Exception as e:
@@ -387,7 +387,7 @@ def main(
     if out_cli is not None:
         sys.exit(0)
     
-    Logger.debug("# Starting flooded buildings analysis ...")
+    Logger.debug(f"# Starting flooded buildings analysis ... PID: {os.getpid()}")
     time_start = time.time()
     
     Logger.debug("# CLI parameters:")
