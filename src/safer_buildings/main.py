@@ -244,6 +244,13 @@ def compute_flood(
                 feature_collection = feature_collection,
                 out = out
             )
+            for add_op_name, add_op_collection in add_ops_output_data.items():
+                Logger.debug(f'## Saving additional operation output: {add_op_name} ...')
+                module_outputs.save_results(
+                    feature_collection = add_op_collection,
+                    out = out,
+                    out_postfix = f"{add_op_name}"
+                )
         except Exception as e:
             raise OutputsException.from_exception(e)
         

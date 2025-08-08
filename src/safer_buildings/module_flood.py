@@ -55,12 +55,14 @@ def compute_flood_area(
     buildings_flood_area = pd.DataFrame(building_wd_query.T, columns=['bld_idxs', 'wd_idxs']).groupby('bld_idxs').agg(
         lambda wd_idxs: MultiPolygon(polygons=waterdepth_gdf.loc[wd_idxs].geometry.values)
     ).reset_index().rename(columns={'bld_idxs': 'bld_idx', 'wd_idxs': 'geometry'})
-    buildings_flood_area = gpd.GeoDataFrame(buildings_flood_area, geometry='geometry', crs="EPSG:3857").to_crs(buildings.crs)
+    buildings_flood_area = gpd.GeoDataFrame(buildings_flood_area, geometry='geometry', crs="EPSG:3857")
     
     buildings.loc[buildings_flood_area['bld_idx'].to_list(), 'flood_area'] = gpd.GeoSeries(
         index = buildings_flood_area['bld_idx'].to_list(),
-        data = buildings_flood_area['geometry'].values
+        data = buildings_flood_area['geometry'].values,
     )
+
+    buildings['flood_area'] = buildings['flood_area'].to_crs(buildings.crs)
 
     return buildings
     

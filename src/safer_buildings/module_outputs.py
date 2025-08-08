@@ -3,8 +3,7 @@ import json
 
 import geopandas as gpd
 
-from . import _utils
-from . import module_s3
+from . import _utils, filesystem, module_s3
 from .module_log import Logger
 
 
@@ -45,12 +44,17 @@ def prepare_feture_collection(
 
 def save_results(
     feature_collection: dict,
-    out: str
+    out: str,
+    out_postfix: str = None
 ):
     """
     Save the results to a file or upload to S3.
     """
     
+    if out_postfix:
+        out_ext = filesystem.justext(out)
+        out = out.replace(out_ext, f"{out_postfix}.{out_ext}")
+
     if out.startswith('s3://'):
         out_tmp = _utils.temp_filename(ext='geojson', prefix='safer-buildings_out')
         with open(out_tmp, 'w') as f:
