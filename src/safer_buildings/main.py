@@ -249,7 +249,7 @@ def compute_flood(
                 module_outputs.save_results(
                     feature_collection = add_op_collection,
                     out = out,
-                    out_postfix = f"{add_op_name}"
+                    out_postfix = add_op_name
                 )
         except Exception as e:
             raise OutputsException.from_exception(e)

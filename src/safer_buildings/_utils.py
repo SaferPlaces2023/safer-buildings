@@ -16,7 +16,8 @@ from shapely import buffer, difference
 from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, box, Polygon, MultiPolygon
 import geopandas as gpd
 
-from ._consts import _GARBAGE_TEMP_FILES, collect_garbage_temp_file
+from . import filesystem
+from ._consts import _GARBAGE_TEMP_FILES
 from .module_log import Logger
 from .module_version import get_version
 
@@ -70,6 +71,14 @@ def temp_filename(ext, prefix='', add_to_garbage_collection=True):
     if add_to_garbage_collection:
         collect_garbage_temp_file(temp_filepath)
     return temp_filepath
+
+
+def collect_garbage_temp_file(file_path):
+    """
+    Collects a temporary file for garbage collection.
+    """
+    _GARBAGE_TEMP_FILES.add(file_path)
+    _GARBAGE_TEMP_FILES.update(filesystem.get_aux_files(file_path))
 
 
 def clean_temp_files(from_garbage_collection=True):
@@ -191,6 +200,19 @@ def crs_is_projected(epsg_string):
     srs = osr.SpatialReference()
     srs.ImportFromEPSG(epsg_code)
     return srs.IsProjected()
+
+
+def set_crs_feature_collection(feature_collection, epsg_string):
+    """
+    Set the CRS of a GeoJSON FeatureCollection.
+    """
+    feature_collection['crs'] = {
+        "type": "name",
+        "properties": {
+            "name": f"urn:ogc:def:crs:{epsg_string.replace(':', '::')}"  # REF: https://gist.github.com/sgillies/1233327 lines 256:271
+        }
+    }
+    return feature_collection
 
     
 def get_geodataframe_crs(geo_df):

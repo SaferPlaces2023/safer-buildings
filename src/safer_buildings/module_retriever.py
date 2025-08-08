@@ -7,8 +7,7 @@ import geopandas as gpd
 
 import leafmap
 
-from . import _utils
-from . import _consts
+from . import _consts, _utils, filesystem
 
 from .module_log import Logger
 
@@ -138,7 +137,7 @@ def retrieve_rer_rest(provider, bbox):
     
     buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.rename(columns={'fid': '_fid'}, inplace=True, errors='ignore')
-    provider_buildings.to_file(buildings_filename, driver='GPKG', index=False)
+    provider_buildings.to_file(buildings_filename, driver=filesystem._GPD_DRIVERS('gpkg'), index=False)
 
     Logger.debug(f"### Retrieved {len(provider_buildings)} features from {provider} service. Saved at {buildings_filename}.")
 
@@ -170,7 +169,7 @@ def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
 
     buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}")
     provider_buildings.rename(columns={'fid': '_fid'}, inplace=True, errors='ignore')
-    provider_buildings.to_file(buildings_filename, driver='GPKG', index=False)
+    provider_buildings.to_file(buildings_filename, driver=filesystem._GPD_DRIVERS('gpkg'), index=False)
 
     Logger.debug(f"### Retrieved {len(provider_buildings)} features from {provider} service. Saved at {buildings_filename}.")
 

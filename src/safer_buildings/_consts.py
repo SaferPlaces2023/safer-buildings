@@ -81,13 +81,3 @@ def init_venezia_wfs_layers():
 
 # DOC: Garbage collection of temp-files
 _GARBAGE_TEMP_FILES = set()
-
-def collect_garbage_temp_file(file_path):
-    """
-    Collects a temporary file for garbage collection.
-    """
-    _GARBAGE_TEMP_FILES.add(file_path)
-    if file_path.endswith('.shp'):
-        add_ext = ['.shx', '.dbf', '.prj', '.cpg']
-        for ext in add_ext:
-            _GARBAGE_TEMP_FILES.add(file_path.replace('.shp', ext))

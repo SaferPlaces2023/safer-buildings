@@ -200,3 +200,6 @@ tests/*
 /**/*.geojson
 /**/__pycache__/
 *.tif
+
+# Data folder
+data/venezia-buildings-overture-merge-wfs/building_datasets/
