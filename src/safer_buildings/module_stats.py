@@ -27,7 +27,7 @@ def filter_by_feature(
 
     if only_flood:
         Logger.debug('## Filtering only flooded buildings ...')
-        filtered_flooded_buildings = filtered_flooded_buildings[filtered_flooded_buildings['is_flooded']]
+        filtered_flooded_buildings = filtered_flooded_buildings[filtered_flooded_buildings[_consts._COL_IS_FLOODED]]
         Logger.debug(f"### Only flooded buildings retained: {len(filtered_flooded_buildings)} out of {len(gdf)}.")
 
     if len(feature_filters) > 0:
@@ -55,7 +55,8 @@ def compute_wd_stats(
     waterdepth_filename: str,
     waterdepth_mask: gpd.GeoDataFrame,
     waterdepth_thresh: float,
-    buildings: gpd.GeoDataFrame
+    buildings: gpd.GeoDataFrame,
+    flood_mode: str
 ) -> gpd.GeoDataFrame:
     """
     Compute statistics on water depth around flooded buildings.
@@ -65,26 +66,26 @@ def compute_wd_stats(
     waterdepth_ds = rioxarray.open_rasterio(waterdepth_filename).sel(band=1)
     waterdepth_ds = xr.where(waterdepth_ds > waterdepth_thresh, waterdepth_ds, np.nan).rio.write_crs(waterdepth_ds.rio.crs)
     
-    if 'ring_geometry' not in buildings.columns:
-        buildings = module_flood.compute_ring_geometry(buildings, _consts._RING_BUFFER_M)
+    if _consts._COL_FLOOD_ROI not in buildings.columns:
+        buildings = module_flood.compute_flood_roi_geometry(buildings, flood_mode)
         
-    if 'flood_area' not in buildings.columns:
+    if _consts._COL_FLOOD_AREA not in buildings.columns:
         buildings = module_flood.compute_flood_area(waterdepth_mask, buildings)
     
-    if 'is_flooded' not in buildings.columns:
+    if _consts._COL_IS_FLOODED not in buildings.columns:
         buildings = module_flood.compute_flooded_buildings(buildings)
     
     Logger.debug("## Compute intersection areas between building ring geometries and flood areas ...")    
-    buildings['flood_geometry'] = buildings['ring_geometry'].intersection(buildings['flood_area'])
+    buildings[_consts._COL_FLOOD_GEOMETRY] = buildings[_consts._COL_FLOOD_ROI].intersection(buildings[_consts._COL_FLOOD_AREA])
     
     Logger.debug("## Extract sampling points from flood geometries ...")
     wd_res = np.array(waterdepth_ds.rio.resolution())
     wd_res = np.abs(wd_res / 1) 
-    buildings['flood_coords'] = buildings.flood_geometry.apply(lambda fg: _utils.coords_in_poly(fg, res=wd_res, poly_buffer=wd_res[0]) if not fg.is_empty else np.nan)    
+    buildings[_consts._COL_FLOOD_COORDS] = buildings[_consts._COL_FLOOD_GEOMETRY].apply(lambda fg: _utils.coords_in_poly(fg, res=wd_res, poly_buffer=wd_res[0]) if not fg.is_empty else np.nan)    
         
     Logger.debug("## Compute water depth values at flood points + descriptive statistics ...")
-    fpxs = buildings['flood_coords'].apply(lambda pts: xr.DataArray(pts[:,0], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
-    fpys = buildings['flood_coords'].apply(lambda pts: xr.DataArray(pts[:,1], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
+    fpxs = buildings[_consts._COL_FLOOD_COORDS].apply(lambda pts: xr.DataArray(pts[:,0], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
+    fpys = buildings[_consts._COL_FLOOD_COORDS].apply(lambda pts: xr.DataArray(pts[:,1], dims=['loc']) if isinstance(pts, np.ndarray) else np.nan)
     flood_vals = [waterdepth_ds.sel(x=fpx, y=fpy, method='nearest').values if isinstance(fpx, xr.DataArray) else np.nan for fpx, fpy in zip(fpxs, fpys)]
     flood_stats = pd.Series(flood_vals).apply(lambda v: dict(pd.Series(v).describe()) if v is not np.nan else np.nan)
     
@@ -114,7 +115,7 @@ def compute_wd_summary(
     def base_summary(gdf):
         _base_summary = {
             'total_buildings': len(gdf),
-            'flooded_buildings': int(gdf['is_flooded'].sum()),
+            'flooded_buildings': int(gdf[_consts._COL_IS_FLOODED].sum()),
         }
         if include_stats:
             _base_summary.update({

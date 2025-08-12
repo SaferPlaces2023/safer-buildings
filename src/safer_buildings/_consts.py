@@ -79,5 +79,26 @@ def init_venezia_wfs_layers():
     _PROVIDERS.extend(VeneziaLayers['provider_name'].to_list())
 
 
+
+# DOC: Flood modes definition
+class FloodModes:
+    """
+    Class to define flood modes.
+    """
+    BUFFER = 'BUFFER'
+    IN_AREA = 'IN-AREA'
+    ALL = 'ALL'
+
+_FLOOD_MODES = { FloodModes.BUFFER, FloodModes.IN_AREA, FloodModes.ALL }
+
+
+
+# DOC: Additional column names created during processing
+_COL_FLOOD_ROI = '__flood_roi__'
+_COL_FLOOD_AREA = '__flood_area__'
+_COL_FLOOD_GEOMETRY = '__flood_geometry__'
+_COL_FLOOD_COORDS = '__flood_coords__'
+_COL_IS_FLOODED = 'is_flooded'  # DOC: this has not dashes beacuse it will be in the final output as property name
+
 # DOC: Garbage collection of temp-files
 _GARBAGE_TEMP_FILES = set()

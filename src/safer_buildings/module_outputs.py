@@ -3,7 +3,7 @@ import json
 
 import geopandas as gpd
 
-from . import _utils, filesystem, module_s3
+from . import _consts, _utils, filesystem, module_s3
 from .module_log import Logger
 
 
@@ -26,7 +26,7 @@ def prepare_feture_collection(
     feature_collection['metadata'] = {
         'provider': provider,
         'buildings_count': len(flooded_buildings),
-        'flooded_buildings_count': int(flooded_buildings['is_flooded'].sum()),
+        'flooded_buildings_count': int(flooded_buildings[_consts._COL_IS_FLOODED].sum()),
         ** summary_stats,
         ** add_ops_output_data    # !!!: Fischietti ci dirà se tenere un'intera feature collection nei metadati, in mia opinione eccessivo, meglio avere più file separati <out-name>.<add-op-name>.<out-format> (comunque già implementato)
     }

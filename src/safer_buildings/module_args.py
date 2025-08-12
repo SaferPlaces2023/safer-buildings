@@ -23,6 +23,7 @@ class _ARG_NAMES():
     OUT = ['--out']
     T_SRS = ['--t_srs']
     PROVIDER = ['--provider']
+    FLOOD_MODE = ['--flood_mode']
     FILTERS = ['--filters']
     ONLY_FLOOD = ['--only_flood']
     STATS = ['--stats']
@@ -73,6 +74,7 @@ def validate_args(
     out: str | None = None,
     t_srs: str | None = None,
     provider: list[str] | None = None,
+    flood_mode: str | None = None,
     feature_filters: dict[str, dict] | None = None,
     only_flood: bool = False,
     compute_stats: bool = False,
@@ -169,7 +171,8 @@ def validate_args(
         
     if provider is None:
         if buildings_filename is None:
-            raise ValueError(f"A provider must be provided if buildings_filename is not given. Check provider argument ({_ARG_NAMES.PROVIDER}) or buildings argument ({_ARG_NAMES.BUILDINGS})")
+            provider = _consts._OVERTURE_PROVIDER
+            Logger.debug(f"## No provider specified. Defaulting to {_consts._OVERTURE_PROVIDER}.")
     else:
         if type(provider) is not str:
             raise TypeError("provider must be a string")
@@ -198,7 +201,21 @@ def validate_args(
         elif provider not in _consts._PROVIDERS:
             raise ValueError(f"Invalid provider: {provider}. Valid providers are: {_consts._PROVIDERS}. Check provider argument ({_ARG_NAMES.PROVIDER})")
     
-    
+    if flood_mode is not None:
+        if type(flood_mode) is not str:
+            raise TypeError(f"flood_mode must be a string. Check flood_mode argument ({_ARG_NAMES.FLOOD_MODE})")
+        flood_mode = flood_mode.upper()
+        if flood_mode not in _consts._FLOOD_MODES:
+            raise ValueError(f"Invalid flood mode: {flood_mode}. Valid flood modes are: {_consts._FLOOD_MODES}. Check flood_mode argument ({_ARG_NAMES.FLOOD_MODE})")
+        if flood_mode == _consts.FloodModes.BUFFER and provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
+            raise ValueError(f'## Flood mode "{_consts.FloodModes.BUFFER}" could end in incorrect results as {_consts._VENEZIA_WFS_PROVIDER} provider provides also some open-areas. Consider using a {_ARG_NAMES.FLOOD_MODE} valued as "{_consts.FloodModes.IN_AREA}" or "{_consts.FloodModes.ALL}" instead.')
+        if flood_mode in (_consts.FloodModes.IN_AREA, _consts._FLOOD_MODES.ALL) and (provider == _consts.OVERTURE or provider.startswith(_consts._RER_REST_PROVIDER)):
+            raise ValueError(f'## Flood mode "{flood_mode}" could end in incorrect results as {_consts.OVERTURE} and {_consts._RER_REST_PROVIDER} providers provide only buildings. Consider using a {_ARG_NAMES.FLOOD_MODE} valued as "{_consts.FloodModes.BUFFER}" instead.')
+    else:
+        flood_mode = _consts.FloodModes.BUFFER
+        if provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
+            flood_mode = _consts.FloodModes.ALL
+
     if feature_filters is not None:
         if not isinstance(feature_filters, (dict, list)):
             raise TypeError(f"filters must be a dictionary or a list. Check filters argument ({_ARG_NAMES.FILTERS})")
@@ -271,6 +288,7 @@ def validate_args(
     Logger.debug(f"### Output file: {out}")
     Logger.debug(f"### Target SRS: {t_srs}")
     Logger.debug(f"### Providers: {provider}")
+    Logger.debug(f"### Flood mode: {flood_mode}")
     Logger.debug(f"### Feature filters: {feature_filters}")
     Logger.debug(f"### Only flood: {only_flood}")
     Logger.debug(f"### Compute stats: {compute_stats}")
@@ -279,5 +297,5 @@ def validate_args(
     Logger.debug(f"### Additional operations: {[op.name for op in add_ops] if add_ops else None}")
     Logger.debug(f"### Output GeoJSON: {out_geojson}")
         
-    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson
+    return waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, flood_mode, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson
 
