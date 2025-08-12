@@ -190,7 +190,7 @@ def validate_args(
         elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
             Logger.debug(f"## Init {_consts._VENEZIA_WFS_PROVIDER} before validating the provider")
             _consts.init_venezia_wfs_layers()
-            if provider != _consts._VENEZIA_WFS_PROVIDER:
+            if provider not in (_consts._VENEZIA_WFS_PROVIDER, _consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER):
                 if len(provider.split('/')) < 2:
                     raise ValueError(f"{_consts._VENEZIA_WFS_PROVIDER} provider must be '{_consts._VENEZIA_WFS_PROVIDER}' or in the format '{_consts._VENEZIA_WFS_PROVIDER}/<feature_name>'. At least one feature_name must be provided. MULTIPLE feature_names can be specified by '/' separated list, e.g. '{_consts._VENEZIA_WFS_PROVIDER}/feature1/feature2'. Check provider argument ({_ARG_NAMES.PROVIDER})")
                 feature_names = provider.split('/')[1:]

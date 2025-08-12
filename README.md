@@ -36,7 +36,7 @@ In first example the water depth file is 'tests/rimini-wd.tif', the OVERTURE pro
 | **`--bbox`** `FLOAT...`                    | Bounding box (`minx`, `miny`, `maxx`, `maxy`). If None, the total bounds of the water depth raster will be used.                     |
 | **`--out`** `TEXT`                         | Output path for the results.                                                                                                           |
 | **`--t_srs`** `TEXT`                       | Target spatial reference system (EPSG code). If None, CRS of building will be used if provided, otherwise CRS of water depth raster. |
-| **`--provider`** `TEXT`                    | Building data provider (one of `OVERTURE`, `RER-REST/*`, `VENEZIA-WFS/*`).                                                                              |
+| **`--provider`** `TEXT`                    | Building data provider (one of `OVERTURE`, `RER-REST/*`, `VENEZIA-WFS/*`, `VENEZIA-WFS-CRITICAL-SITES`).                                                                              |
 | **`--flood_mode`** `TEXT`                   | Where to search for flooded buildings/areas. Valid values are `BUFFER`, `IN-AREA`, `ALL`. When `BUFFER` use buffer look for flood around buildings, when `IN-AREA` look for flood inside geometry, when `ALL` look for flood in both ways. If None, the default value is `BUFFER`.                        |
 | **`--filters`** `TEXT`                     | Filters for provider features in JSON format.                                                                                         |
 | **`--only_flood`**                       | Only return flooded buildings (default: `False`).                                                                                      |
