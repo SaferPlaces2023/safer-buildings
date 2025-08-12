@@ -145,7 +145,14 @@ def retrieve_rer_rest(provider, bbox):
 
 
 def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
-    service_ids = list(provider.split('/')[1:]) if provider != _consts._VENEZIA_WFS_PROVIDER else _consts.VeneziaLayers.Name.unique().tolist()
+    service_ids = None
+    if provider == _consts._VENEZIA_WFS_PROVIDER:
+        service_ids = _consts.VeneziaLayers.Name.unique().tolist()
+    elif provider == _consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER:
+        service_ids = _consts.get_venezia_wfs_criticals_layers()
+    else:
+        service_ids = list(provider.split('/')[1:]) if provider != _consts._VENEZIA_WFS_PROVIDER else _consts.VeneziaLayers.Name.unique().tolist()
+
     gdf_layers = []
     bounds = bbox.total_bounds
     for service_id in service_ids:
@@ -165,7 +172,7 @@ def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
 
     provider_buildings = pd.concat(gdf_layers, ignore_index=True)
     if buffer_points:
-        provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
+        provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENEZIA_BUILDING_POINTS_BUFFER_M)
 
     buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}" if len(provider.split('/')) <= 2 else "safer-buildings_venezia-wfs")
     provider_buildings.rename(columns={'fid': '_fid'}, inplace=True, errors='ignore')

@@ -320,7 +320,7 @@ def compute_flood(
 )
 @click.option(
     *_ARG_NAMES.PROVIDER,
-    type=str, default=None, help='Building data provider (one of OVERTURE, RER-REST/*).'
+    type=str, default=None, help='Building data provider (one of OVERTURE, RER-REST/*, VENEZIA-WFS/*, VENEZIA-WFS-CRITICAL-SITES).'
 )
 @click.option(
     *_ARG_NAMES.FLOOD_MODE,

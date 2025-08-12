@@ -58,7 +58,8 @@ def init_rer_rest_layers():
 # DOC: Venezia WFS provider definition
 
 _VENEZIA_WFS_PROVIDER = 'VENEZIA-WFS'
-_VENICE_BUILDING_POINTS_BUFFER_M = 20
+_VENEZIA_WFS_CRITICAL_SITES_PROVIDER = 'VENEZIA-WFS-CRITICAL-SITES'
+_VENEZIA_BUILDING_POINTS_BUFFER_M = 20
 _VENEZIA_WFS_SERVICE_URL = "https://webgis2.cittametropolitana.ve.it/lizmap/index.php/lizmap/service?repository=in4safety&project=protezionecivile_ogc&service=WFS&version=1.1.0"
 
 VeneziaLayers = None
@@ -77,6 +78,16 @@ def init_venezia_wfs_layers():
     global _PROVIDERS
     _PROVIDERS.append(_VENEZIA_WFS_PROVIDER)
     _PROVIDERS.extend(VeneziaLayers['provider_name'].to_list())
+
+def get_venezia_wfs_criticals_layers():
+    if VeneziaLayers is None:
+        init_venezia_wfs_layers()
+    critical_layers_titles = [
+        title for title in VeneziaLayers.Title 
+        if title.startswith('p0106') or title=='p0104031_prontosoccorso' or title=='c0107057_grafostrade'
+    ]
+    critical_layers_names = VeneziaLayers[VeneziaLayers.Title.isin(critical_layers_titles)].Name.unique().tolist()
+    return critical_layers_names
 
 
 

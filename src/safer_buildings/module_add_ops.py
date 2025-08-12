@@ -323,6 +323,7 @@ _ADD_OPS = {
         'args': NearbyPumps.args,
         'providers': [
             _consts._VENEZIA_WFS_PROVIDER,
+            _consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER,
             _consts._OVERTURE_PROVIDER
         ]
     },
@@ -332,6 +333,7 @@ _ADD_OPS = {
         'args': AlertMethod.args,
         'providers': [
             _consts._VENEZIA_WFS_PROVIDER,
+            _consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER,
             _consts._OVERTURE_PROVIDER
         ]
     }
