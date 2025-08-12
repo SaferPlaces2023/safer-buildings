@@ -167,7 +167,7 @@ def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
     if buffer_points:
         provider_buildings = _utils.buffer_points(provider_buildings, buffer_meters=_consts._VENICE_BUILDING_POINTS_BUFFER_M)
 
-    buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}")
+    buildings_filename = _utils.temp_filename(ext='gpkg', prefix=f"safer-buildings_{provider.replace('/','-')}" if len(provider.split('/')) <= 2 else "safer-buildings_venezia-wfs")
     provider_buildings.rename(columns={'fid': '_fid'}, inplace=True, errors='ignore')
     provider_buildings.to_file(buildings_filename, driver=filesystem._GPD_DRIVERS('gpkg'), index=False)
 
