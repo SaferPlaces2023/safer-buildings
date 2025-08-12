@@ -21,7 +21,7 @@ import geopandas as gpd
 
 import leafmap
  
-from . import _utils, module_s3, module_version
+from . import _consts, _utils, module_s3, module_version
 from . import module_logo, module_args, module_retriever, module_flood, module_stats, module_add_ops, module_outputs
 from .module_args import _ARG_NAMES
 from .module_log import Logger, is_debug_mode
@@ -44,6 +44,7 @@ def compute_flood(
     out: str | None = None,
     t_srs: str | None = None,
     provider: list[str] | None = None,
+    flood_mode: str | None = None,
     filters: dict[str, list[dict[str, list|str|int]]] | None = None,
     only_flood: bool = False,
     stats: bool = False,
@@ -99,6 +100,7 @@ def compute_flood(
                 out = out,
                 t_srs = t_srs,
                 provider = provider,
+                flood_mode = flood_mode,
                 feature_filters = filters,
                 only_flood = only_flood,
                 compute_stats = stats,
@@ -107,7 +109,7 @@ def compute_flood(
                 add_ops = add_ops,
                 out_geojson = out_geojson,
             )
-            waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson = validated_args
+            waterdepth_filename, buildings_filename, wd_thresh, bbox, out, t_srs, provider, flood_mode, feature_filters, only_flood, compute_stats, compute_summary, summary_on, add_ops, out_geojson = validated_args
         except Exception as e:
             raise ArgsException.from_exception(e)
         
@@ -141,7 +143,8 @@ def compute_flood(
             Logger.debug('# Intersecting buildings with water depth ...')
             flooded_buildings = module_flood.get_flooded_buildings(
                 waterdepth_gdf = waterdepth_polygonized,
-                buildings = provider_buildings
+                buildings = provider_buildings,
+                flood_mode = flood_mode
             )
         except Exception as e:
             raise FloodException.from_exception(e)
@@ -167,7 +170,8 @@ def compute_flood(
                     waterdepth_filename=waterdepth_filename,
                     waterdepth_mask=waterdepth_polygonized,
                     waterdepth_thresh=wd_thresh,
-                    buildings=flooded_buildings
+                    buildings=flooded_buildings,
+                    flood_mode=flood_mode
                 )
                 Logger.debug("## Water depth stats computed for flooded buildings.")
         except Exception as e:
@@ -191,8 +195,7 @@ def compute_flood(
             raise StatsException.from_exception(e)
         
         # DOC: 7.1 — Drop other geometry columns
-        flooded_buildings = flooded_buildings.drop(columns=[col for col in ['ring_geometry', 'flood_area', 'flood_geometry', 'flood_coords'] if col in flooded_buildings.columns])
-        
+        flooded_buildings = flooded_buildings.drop(columns = set(flooded_buildings.columns) & set([_consts._COL_FLOOD_ROI, _consts._COL_FLOOD_AREA, _consts._COL_FLOOD_GEOMETRY, _consts._COL_FLOOD_COORDS]))
 
         # DOC: 8 — Run additional operations if any
         try:
@@ -320,6 +323,10 @@ def compute_flood(
     type=str, default=None, help='Building data provider (one of OVERTURE, RER-REST/*).'
 )
 @click.option(
+    *_ARG_NAMES.FLOOD_MODE,
+    type=str, default=None, help='Where to search for flooded buildings/areas. Valid values are \'buffer\', \'in-area\', \'all\'. When \'buffer\' use buffer look for flood around buildings, when \'in-area\' look for flood inside geometry, when \'all\' look for flood in both ways. If None, the default value is \'buffer\'.'
+)
+@click.option(
     *_ARG_NAMES.FILTERS,
     callback = lambda ctx, param, value: json.loads(value.replace("'", '"')) if value else None,
     type=str, default=None, help='Filters for providers-features in JSON format.'
@@ -362,6 +369,7 @@ def main(
     out,
     t_srs,
     provider,
+    flood_mode,
     filters,
     only_flood,
     stats,
@@ -405,6 +413,7 @@ def main(
     Logger.debug(f"## Output file: {out}")
     Logger.debug(f"## Target SRS: {t_srs}")
     Logger.debug(f"## Provider: {provider}")
+    Logger.debug(f"## Flood mode: {flood_mode}")
     Logger.debug(f"## Feature filters: {filters}")
     Logger.debug(f"## Only flood: {only_flood}")
     Logger.debug(f"## Stats: {stats}")
@@ -421,6 +430,7 @@ def main(
         out = out,
         t_srs = t_srs,
         provider = provider,
+        flood_mode = flood_mode,
         filters = filters,
         only_flood = only_flood,
         stats = stats,

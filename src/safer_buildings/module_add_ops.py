@@ -151,7 +151,7 @@ class NearbyPumps(AdditionalOperation):
         gdf_pumps = _utils.safe_json_df(gdf_pumps)
         nearby_pumps_collection = gdf_pumps.to_geo_dict()
         nearby_pumps_collection = _utils.set_crs_feature_collection(nearby_pumps_collection, t_srs)
-        Logger.debug(f"## Buildings with nearby pumps: {gdf_buildings[gdf_buildings['is_flooded']]['nearby_pumps'].apply(lambda npumps: len(npumps)>0).sum()} out of {len(gdf_buildings[gdf_buildings['is_flooded']])} total flooded buildings.")
+        Logger.debug(f"## Buildings with nearby pumps: {gdf_buildings[gdf_buildings[_consts._COL_IS_FLOODED]]['nearby_pumps'].apply(lambda npumps: len(npumps)>0).sum()} out of {len(gdf_buildings[gdf_buildings[_consts._COL_IS_FLOODED]])} total flooded buildings.")
 
         # DOC: Return the updated GeoDataFrame with the nearest pumps and the nearby pumps collection -----------------
         return gdf_buildings, nearby_pumps_collection
@@ -307,7 +307,7 @@ class AlertMethod(AdditionalOperation):
         gdf_alert_method = _utils.safe_json_df(gdf_alert_method)
         alert_method_collection = gdf_alert_method.to_geo_dict()
         alert_method_collection = _utils.set_crs_feature_collection(alert_method_collection, t_srs)
-        Logger.debug(f"## Buildings with alert methods: {gdf_buildings[gdf_buildings['is_flooded']]['alert_method'].apply(lambda am: len(am)>0).sum()} out of {len(gdf_buildings[gdf_buildings['is_flooded']])} total flooded buildings.")
+        Logger.debug(f"## Buildings with alert methods: {gdf_buildings[gdf_buildings[_consts._COL_IS_FLOODED]]['alert_method'].apply(lambda am: len(am)>0).sum()} out of {len(gdf_buildings[gdf_buildings[_consts._COL_IS_FLOODED]])} total flooded buildings.")
 
         # DOC: Return the updated GeoDataFrame with the alert method and the alert method collection ----------------
         return gdf_buildings, alert_method_collection

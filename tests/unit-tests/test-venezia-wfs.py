@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
             "summary_on": "subtype",    # None,
             "add_ops": {
                 module_add_ops.NearbyPumps.name: {
-                    "wd_buffer": 4000.0,
+                    "max_distance": 4000.0,
                 },
                 module_add_ops.AlertMethod.name: {
                     "wd_buffer": 2000.0,
@@ -82,7 +82,7 @@ class Test(unittest.TestCase):
         }
 
     
-        args = args_big
+        args = args_small
         
         result = main_python( ** args )
 

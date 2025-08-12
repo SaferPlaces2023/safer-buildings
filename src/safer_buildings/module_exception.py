@@ -20,6 +20,9 @@ class CustomException(Exception):
     """
     Custom exception class for safer_buildings module.
     """
+    
+    status_code = 500
+
     def __init__(self, message, status_code=None, ex_type=None, ex_parent=None, *args):
         super().__init__(message, *args)
         self.message = message
