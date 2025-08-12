@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import logging
 import datetime
 import tempfile
@@ -200,6 +201,33 @@ def crs_is_projected(epsg_string):
     srs = osr.SpatialReference()
     srs.ImportFromEPSG(epsg_code)
     return srs.IsProjected()
+
+
+def epsg_from_coords(lon, lat, ellps='WGS84'):
+    """
+    EpsgFromCoords    WGS84 / ETRS89 / ED50
+    """
+    zone = math.ceil((lon + 180.0) / 6)
+    south = "+south " if lat < 0 else ""
+    if ellps == "ED50":
+        # proj4text = f"+proj=utm +zone={zone} {south}+ellps=intl +units=m +no_defs "
+        epsg = (23000 if south else 23000) + zone
+        # south code???
+    elif ellps == "ETRS89":
+        # proj4text = f"+proj=utm +zone={zone} {south}+ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs "
+        epsg = (22000 if south else 25800) + zone
+        # south code???
+    elif ellps == "WGS84":
+        # proj4text = f"+proj=utm +zone={zone} {south}+ellps=WGS84 +datum=WGS84 +units=m +no_defs "
+        epsg = (32700 if south else 32600) + zone
+    else:
+        epsg = (32700 if south else 32600) + zone
+
+    #srs = osr.SpatialReference()
+    #srs.ImportFromEPSG(epsg)
+    # epsg = "%s:%s" % (srs.GetAuthorityName(None), srs.GetAuthorityCode(None))
+    
+    return f"EPSG:{epsg}"
 
 
 def set_crs_feature_collection(feature_collection, epsg_string):
