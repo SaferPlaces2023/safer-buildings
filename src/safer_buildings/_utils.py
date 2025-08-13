@@ -18,7 +18,7 @@ from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, box
 import geopandas as gpd
 
 from . import filesystem
-from ._consts import _GARBAGE_TEMP_FILES
+from . import _consts
 from .module_log import Logger
 from .module_version import get_version
 
@@ -78,8 +78,8 @@ def collect_garbage_temp_file(file_path):
     """
     Collects a temporary file for garbage collection.
     """
-    _GARBAGE_TEMP_FILES.add(file_path)
-    _GARBAGE_TEMP_FILES.update(filesystem.get_aux_files(file_path))
+    _consts._GARBAGE_TEMP_FILES.add(file_path)
+    _consts._GARBAGE_TEMP_FILES.update(filesystem.get_aux_files(file_path))
 
 
 def clean_temp_files(from_garbage_collection=True):
@@ -87,15 +87,15 @@ def clean_temp_files(from_garbage_collection=True):
     Cleans up temporary files collected for garbage collection.
     """
     if from_garbage_collection:
-        n_files = len(_GARBAGE_TEMP_FILES)
-        for fp in _GARBAGE_TEMP_FILES:
+        n_files = len(_consts._GARBAGE_TEMP_FILES)
+        for fp in _consts._GARBAGE_TEMP_FILES:
             try:
                 if os.path.exists(fp):
                     os.remove(fp)
             except Exception as e:
                 n_files -= 1
                 Logger.error(f"### Error removing temporary file {fp}: {e}")
-        _GARBAGE_TEMP_FILES.clear()
+        _consts._GARBAGE_TEMP_FILES.clear()
         Logger.debug(f"## Removed {n_files} temporary files from garbage collection.")
     else:
         tmp_fps = [os.path.join(_module_temp_dir, f) for f in os.listdir(_module_temp_dir) if os.path.isfile(os.path.join(_module_temp_dir, f))]
@@ -203,7 +203,27 @@ def crs_is_projected(epsg_string):
     return srs.IsProjected()
 
 
-def epsg_from_coords(lon, lat, ellps='WGS84'):
+def epsg_utm_from_gdf(geo_df, ellps='WGS84'):
+    """
+    Get the EPSG code for UTM projection based on the GeoDataFrame's geographic coordinates.
+    """
+    minx, miny, maxx, maxy = geo_df.to_crs(epsg=4326).total_bounds
+    lon = (minx + maxx) / 2
+    lat = (miny + maxy) / 2
+    epsg_code = epsg_utm_from_coords(lon, lat, ellps)
+    return epsg_code
+
+def epsg_utm_from_raster(raster_filename, ellps='WGS84'):
+    """
+    Get the EPSG code for UTM projection based on the raster's geographic coordinates.
+    """
+    minx, miny, maxx, maxy = gpd.GeoDataFrame(geometry=[box(*get_raster_bounds(raster_filename))], crs=get_raster_crs(raster_filename)).to_crs(epsg=4326).total_bounds
+    lon = (minx + maxx) / 2
+    lat = (miny + maxy) / 2
+    epsg_code = epsg_utm_from_coords(lon, lat, ellps)
+    return epsg_code
+
+def epsg_utm_from_coords(lon, lat, ellps='WGS84'):
     """
     EpsgFromCoords    WGS84 / ETRS89 / ED50
     """
@@ -223,10 +243,6 @@ def epsg_from_coords(lon, lat, ellps='WGS84'):
     else:
         epsg = (32700 if south else 32600) + zone
 
-    #srs = osr.SpatialReference()
-    #srs.ImportFromEPSG(epsg)
-    # epsg = "%s:%s" % (srs.GetAuthorityName(None), srs.GetAuthorityCode(None))
-    
     return f"EPSG:{epsg}"
 
 
@@ -264,9 +280,10 @@ def ensure_geodataframe_crs(geo_df, epsg_string):
         return geo_df.to_crs(crs=target_crs_wkt)
     
 
-def buffer_points(gdf, buffer_meters):
+def buffer_points(gdf: gpd.GeoDataFrame, buffer_meters):
     og_crs = gdf.crs
-    gdf.to_crs(epsg=3857, inplace=True)
+    Logger.debug(f'------------------{_consts._EPSG_UTMxx}')
+    gdf.to_crs(crs=_consts._EPSG_UTMxx, inplace=True)
     gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, MultiPoint, LineString, MultiLineString] else g)
     gdf = gdf.to_crs(og_crs)
     return gdf
@@ -277,7 +294,7 @@ def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     Get the exterior ring of the first polygon in the GeoDataFrame.
     """
     gdf_rings = gdf.copy()
-    gdf_rings.to_crs(epsg=3857, inplace=True)
+    gdf_rings.to_crs(epsg=_consts._EPSG_UTMxx, inplace=True)
 
     buffers = buffer(gdf_rings.geometry.values, ring_buffer)
     rings = difference(buffers, gdf_rings.geometry.values)

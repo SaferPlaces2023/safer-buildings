@@ -74,8 +74,8 @@ class NearbyPumps(AdditionalOperation):
         bbox = kwargs['bbox']        
         t_srs = kwargs['t_srs']
         
-        # DOC: Convert CRS to Projected CRS (EPSG:3857) due to calculating distances
-        gdf_buildings['geometry_3857'] = gdf_buildings.to_crs(epsg=3857).geometry
+        # DOC: Convert CRS to Projected CRS (EPSG:UTMxx) due to calculating distances
+        gdf_buildings['geometry_prj'] = gdf_buildings.to_crs(_consts._EPSG_UTMxx).geometry
 
         # DOC: Retrieve the pumps from the WFS provider ---------------------------------------------------------------
         gdf_pumps = module_retriever.retrieve_venezia_wfs(
@@ -84,8 +84,8 @@ class NearbyPumps(AdditionalOperation):
             buffer_points = False 
         ).reset_index(drop=True)
         # DOC: Prepare a projected-crs geometry column to use in spatial operations
-        gdf_pumps['geometry_3857'] = gdf_pumps.to_crs(epsg=3857).geometry
-        gdf_pumps['geometry'] = gdf_pumps['geometry_3857'].centroid
+        gdf_pumps['geometry_prj'] = gdf_pumps.to_crs(_consts._EPSG_UTMxx).geometry
+        gdf_pumps['geometry'] = gdf_pumps['geometry_prj'].centroid
         # DOC: Convert the pumps GeoDataFrame to the target CRS
         gdf_pumps = gdf_pumps.to_crs(t_srs)
         gdf_pumps['longitude'] = gdf_pumps.geometry.x
@@ -93,10 +93,10 @@ class NearbyPumps(AdditionalOperation):
         self._nearby_pumps_basic_attributes.extend(['longitude', 'latitude'])
 
         # DOC: Create a spatial index for the water depth polygons ----------------------------------------------------
-        wd_3857_tree = STRtree(gdf_wd.to_crs(epsg=3857).geometry.values)
+        wd_prj_tree = STRtree(gdf_wd.to_crs(_consts._EPSG_UTMxx).geometry.values)
 
         # DOC: Find pumps whithin a distance from the water depth polygons --------------------------------------------
-        pumps_in_wd_query = wd_3857_tree.query(gdf_pumps['geometry_3857'], predicate='dwithin', distance=self.max_distance)
+        pumps_in_wd_query = wd_prj_tree.query(gdf_pumps['geometry_prj'], predicate='dwithin', distance=self.max_distance)
         pumps_selection = gdf_pumps.iloc[pumps_in_wd_query[0,:]]   # DOC: Extract from Target CRS pumps df, using the query result, so we have the pumps in the target CRS
         if pumps_selection.empty:
             Logger.debug("## No pumps found within the specified distance from water depth areas.")
@@ -112,7 +112,7 @@ class NearbyPumps(AdditionalOperation):
         Logger.debug(f"## Found {len(gdf_pumps[self._pumps_identifier].unique())} nearby pumps for the flooded areas.")
 
         # DOC: Find wd area for each building -------------------------------------------------------------------------
-        buildings_in_wd_query = wd_3857_tree.query(gdf_buildings['geometry_3857'], predicate='intersects', distance=0)
+        buildings_in_wd_query = wd_prj_tree.query(gdf_buildings['geometry_prj'], predicate='intersects', distance=0)
         bld_wd_idxs = pd.DataFrame(buildings_in_wd_query.T, columns=['building_idx', 'wd_idxs']).groupby('building_idx').agg(list).reset_index()
 
         # DOC: Join the buildings with related water depth areas indexes ----------------------------------------------
@@ -125,29 +125,29 @@ class NearbyPumps(AdditionalOperation):
         # DOC: Join the buildings with pumps that share the same water depth area
         gdf_pumps.rename(columns={col: f'{col}_pump' for col in gdf_pumps.columns}, inplace=True)
         gdf_buildings_pumps = pd.merge(
-            gdf_buildings_pumps, gdf_pumps[[f'{attr}_pump' for attr in self._nearby_pumps_basic_attributes] + ['geometry_3857_pump']],
+            gdf_buildings_pumps, gdf_pumps[[f'{attr}_pump' for attr in self._nearby_pumps_basic_attributes] + ['geometry_prj_pump']],
             left_on='wd_idxs', right_index=True, how='left'
         ).drop(columns='wd_idxs')
-        gdf_buildings_pumps = gdf_buildings_pumps[gdf_buildings_pumps['geometry_3857_pump'].notna()]
+        gdf_buildings_pumps = gdf_buildings_pumps[gdf_buildings_pumps['geometry_prj_pump'].notna()]
         
         # DOC: Calculate the distance between each building and its related pumps (then filter by max_distance)
-        gdf_buildings_pumps['distance_pump'] = distance(gdf_buildings_pumps['geometry_3857'].values, gdf_buildings_pumps['geometry_3857_pump'].values)
+        gdf_buildings_pumps['distance_pump'] = distance(gdf_buildings_pumps['geometry_prj'].values, gdf_buildings_pumps['geometry_prj_pump'].values)
         gdf_buildings_pumps = gdf_buildings_pumps[gdf_buildings_pumps['distance_pump'] <= self.max_distance]
         
         # DOC: Foreach building, collect the nearby pumps (only basic attributes) in a list
-        gdf_buildings_pumps = gdf_buildings_pumps[[col for col in gdf_buildings_pumps.columns if col.endswith('_pump')]].drop(columns=['geometry_3857_pump'])
+        gdf_buildings_pumps = gdf_buildings_pumps[[col for col in gdf_buildings_pumps.columns if col.endswith('_pump')]].drop(columns=['geometry_prj_pump'])
         gdf_buildings_pumps.rename(columns={col: col.replace('_pump', '') for col in gdf_buildings_pumps.columns}, inplace=True)
         gdf_buildings_pumps = gdf_buildings_pumps.groupby(gdf_buildings_pumps.index).agg(list)
         buildings_nearby_pumps = gdf_buildings_pumps.apply(lambda row: pd.DataFrame(row.to_dict()).to_dict(orient='records'), axis=1).to_list()
         # DOC: Add the nearby pumps to the buildings GeoDataFrame       
         gdf_buildings['nearby_pumps'] = [list() for _ in range(len(gdf_buildings))]
         gdf_buildings.loc[gdf_buildings_pumps.index, 'nearby_pumps'] = pd.Series(buildings_nearby_pumps, index=gdf_buildings_pumps.index)
-        gdf_buildings.drop(columns=['geometry_3857'], inplace=True)
+        gdf_buildings.drop(columns=['geometry_prj'], inplace=True)
 
         # DOC: Prepare the pumps GeoDataFrame to be returned ----------------------------------------------------------
         gdf_pumps.rename(columns={col: col.replace('_pump', '') for col in gdf_pumps.columns}, inplace=True)
         gdf_pumps.drop_duplicates(subset=self._pumps_identifier, inplace=True)
-        gdf_pumps = gdf_pumps.drop(columns=['geometry_3857']).reset_index(drop=True)
+        gdf_pumps = gdf_pumps.drop(columns=['geometry_prj']).reset_index(drop=True)
         gdf_pumps = _utils.safe_json_df(gdf_pumps)
         nearby_pumps_collection = gdf_pumps.to_geo_dict()
         nearby_pumps_collection = _utils.set_crs_feature_collection(nearby_pumps_collection, t_srs)
@@ -213,8 +213,8 @@ class AlertMethod(AdditionalOperation):
         bbox = kwargs['bbox']
         t_srs = kwargs['t_srs']
 
-        # DOC: Convert CRS to Projected CRS (EPSG:3857) due to compute spatial operations
-        gdf_buildings['geometry_3857'] = gdf_buildings.to_crs(epsg=3857).geometry
+        # DOC: Convert CRS to Projected CRS (EPSG:UTMxx) due to compute spatial operations
+        gdf_buildings['geometry_prj'] = gdf_buildings.to_crs(_consts._EPSG_UTMxx).geometry
 
         # DOC: Retrieve the alert areas -------------------------------------------------------------------------------
         gdf_alert_area = module_retriever.retrieve_venezia_wfs(
@@ -222,7 +222,7 @@ class AlertMethod(AdditionalOperation):
             bbox = bbox,
             buffer_points=False 
         ).reset_index(drop=True)
-        gdf_alert_area['geometry_3857'] = gdf_alert_area.to_crs(epsg=3857).geometry
+        gdf_alert_area['geometry_prj'] = gdf_alert_area.to_crs(_consts._EPSG_UTMxx).geometry
         # DOC: Retrieve the alert methods (only related to flooding event) from the WFS provider
         gdf_alert_method = module_retriever.retrieve_venezia_wfs(
             provider = f'{_consts._VENEZIA_WFS_PROVIDER}/{self._alert_method_layer_id}',
@@ -230,22 +230,22 @@ class AlertMethod(AdditionalOperation):
             buffer_points = False
         )
         gdf_alert_method = gdf_alert_method[(gdf_alert_method['allagament_t']=='Sì') | (gdf_alert_method['r_altro']=='Acqua Alta')].reset_index(drop=True)
-        gdf_alert_method['geometry_3857'] = gdf_alert_method.to_crs(epsg=3857).geometry
+        gdf_alert_method['geometry_prj'] = gdf_alert_method.to_crs(_consts._EPSG_UTMxx).geometry
         # DOC: Convert the alert method GeoDataFrame to the target CRS
-        gdf_alert_method['geometry'] = gpd.GeoSeries(gdf_alert_method['geometry_3857'].centroid, crs='EPSG:3857').to_crs(gdf_alert_method.crs)
+        gdf_alert_method['geometry'] = gpd.GeoSeries(gdf_alert_method['geometry_prj'].centroid, crs=_consts._EPSG_UTMxx).to_crs(gdf_alert_method.crs)
         gdf_alert_method = gdf_alert_method.to_crs(t_srs)
         gdf_alert_method['longitude'] = gdf_alert_method.geometry.x
         gdf_alert_method['latitude'] = gdf_alert_method.geometry.y
         self._alert_method_basic_attributes.extend(['longitude', 'latitude'])
 
         # DOC: Filter out alert area that not contains alert methods
-        gdf_alert_area = gdf_alert_area[gdf_alert_area['geometry_3857'].intersects(gdf_alert_method['geometry_3857'].union_all())].reset_index(drop=True)
+        gdf_alert_area = gdf_alert_area[gdf_alert_area['geometry_prj'].intersects(gdf_alert_method['geometry_prj'].union_all())].reset_index(drop=True)
         
         # DOC: Create a spatial index for the water depth polygons ----------------------------------------------------
-        wd_tree = STRtree(gdf_wd.to_crs(epsg=3857).buffer(max(self.wd_buffer, 0)).geometry.values)
+        wd_tree = STRtree(gdf_wd.to_crs(_consts._EPSG_UTMxx).buffer(max(self.wd_buffer, 0)).geometry.values)
 
         # DOC: Alert area in water depth areas ------------------------------------------------------------------------
-        alert_area_in_wd_query = wd_tree.query(gdf_alert_area['geometry_3857'].values, predicate='intersects', distance=0)
+        alert_area_in_wd_query = wd_tree.query(gdf_alert_area['geometry_prj'].values, predicate='intersects', distance=0)
         alert_area_selection = gdf_alert_area.iloc[alert_area_in_wd_query[0,:]]
         alert_area_selection['index'] = alert_area_selection.index
         alert_area_selection.drop_duplicates(subset='index', inplace=True)
@@ -253,8 +253,8 @@ class AlertMethod(AdditionalOperation):
         Logger.debug(f"## Found {len(alert_area_selection)} alert areas in the water depth areas.")
 
         # DOC: Alert method in alert area -----------------------------------------------------------------------------
-        alert_area_selection_tree = STRtree(alert_area_selection['geometry_3857'].values)
-        alert_method_query = alert_area_selection_tree.query(gdf_alert_method['geometry_3857'].values, predicate='within')
+        alert_area_selection_tree = STRtree(alert_area_selection['geometry_prj'].values)
+        alert_method_query = alert_area_selection_tree.query(gdf_alert_method['geometry_prj'].values, predicate='within')
         alert_method_selection = gdf_alert_method.iloc[alert_method_query[0,:]]
         alert_method_selection['index'] = alert_method_selection.index
         alert_method_selection.drop_duplicates(subset='index', inplace=True)
@@ -270,7 +270,7 @@ class AlertMethod(AdditionalOperation):
         # DOC: Prepare and alert method column in the buildings GeoDataFrame ------------------------------------------
         gdf_buildings['alert_method'] = [list() for _ in range(len(gdf_buildings))]
         # DOC: Foreach building, find the alert areas it is in
-        buildings_alert_query = alert_area_selection_tree.query(gdf_buildings['geometry_3857'].values, predicate='intersects')
+        buildings_alert_query = alert_area_selection_tree.query(gdf_buildings['geometry_prj'].values, predicate='intersects')
         # DOC: Aggregate alert area indexes for each building
         bld_aa_idxs = pd.DataFrame(buildings_alert_query.T, columns=['building_idx', 'alert_area_idx']).groupby('building_idx').agg(list).reset_index()
         bld_aa_idxs.set_index('building_idx', inplace=True)
@@ -285,25 +285,25 @@ class AlertMethod(AdditionalOperation):
         # DOC: Join the buildings with alert methods that share the same alert area
         gdf_alert_method.rename(columns={col: f'{col}_alert_method' for col in gdf_alert_method.columns}, inplace=True)
         gdf_buildings_alert = pd.merge(
-            gdf_buildings_alert, gdf_alert_method[[f'{attr}_alert_method' for attr in self._alert_method_basic_attributes] + ['geometry_3857_alert_method']],
+            gdf_buildings_alert, gdf_alert_method[[f'{attr}_alert_method' for attr in self._alert_method_basic_attributes] + ['geometry_prj_alert_method']],
             left_on='alert_area_idx', right_index=True, how='left'
         ).drop(columns='alert_area_idx')
-        gdf_buildings_alert = gdf_buildings_alert[gdf_buildings_alert['geometry_3857_alert_method'].notna()]
+        gdf_buildings_alert = gdf_buildings_alert[gdf_buildings_alert['geometry_prj_alert_method'].notna()]
 
         # DOC: Foreach building, collect the alert methods (only basic attributes) in a list
-        gdf_buildings_alert = gdf_buildings_alert[[col for col in gdf_buildings_alert.columns if col.endswith('_alert_method')]].drop(columns=['geometry_3857_alert_method'])
+        gdf_buildings_alert = gdf_buildings_alert[[col for col in gdf_buildings_alert.columns if col.endswith('_alert_method')]].drop(columns=['geometry_prj_alert_method'])
         gdf_buildings_alert.rename(columns={col: col.replace('_alert_method', '') for col in gdf_buildings_alert.columns}, inplace=True)
         gdf_buildings_alert = gdf_buildings_alert.groupby(gdf_buildings_alert.index).agg(list)
         buildings_alert_methods = gdf_buildings_alert.apply(lambda row: pd.DataFrame(row.to_dict()).to_dict(orient='records'), axis=1).to_list()
         # DOC: Add the alert methods to the buildings GeoDataFrame
         gdf_buildings['alert_method'] = [list() for _ in range(len(gdf_buildings))]
         gdf_buildings.loc[gdf_buildings_alert.index, 'alert_method'] = pd.Series(buildings_alert_methods, index=gdf_buildings_alert.index)
-        gdf_buildings.drop(columns=['geometry_3857'], inplace=True)
+        gdf_buildings.drop(columns=['geometry_prj'], inplace=True)
 
         # DOC: Prepare the alert method GeoDataFrame to be returned -------------------------------------------------
         gdf_alert_method.rename(columns={col: col.replace('_alert_method', '') for col in gdf_alert_method.columns}, inplace=True)
         gdf_alert_method.drop_duplicates(subset=self._alert_method_identifier, inplace=True)
-        gdf_alert_method = gdf_alert_method.drop(columns=['geometry_3857', 'alert_method_idx']).reset_index(drop=True)
+        gdf_alert_method = gdf_alert_method.drop(columns=['geometry_prj', 'alert_method_idx']).reset_index(drop=True)
         gdf_alert_method = _utils.safe_json_df(gdf_alert_method)
         alert_method_collection = gdf_alert_method.to_geo_dict()
         alert_method_collection = _utils.set_crs_feature_collection(alert_method_collection, t_srs)

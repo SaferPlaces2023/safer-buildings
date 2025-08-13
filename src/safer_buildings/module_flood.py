@@ -71,15 +71,15 @@ def compute_flood_area(
     """
     Logger.debug("## Get buildings with intersection between ring geometries and water depth polygons ...")
     
-    wd_tree = STRtree(waterdepth_gdf.to_crs('EPSG:3857').geometry.values)
+    wd_tree = STRtree(waterdepth_gdf.to_crs(_consts._EPSG_UTMxx).geometry.values)
 
-    building_wd_query = wd_tree.query(buildings[_consts._COL_FLOOD_ROI].to_crs('EPSG:3857').values, predicate='intersects')
-    buildings[_consts._COL_FLOOD_AREA] = gpd.GeoSeries([MultiPolygon(polygons=[]) for _ in range(len(buildings))], crs="EPSG:3857")
+    building_wd_query = wd_tree.query(buildings[_consts._COL_FLOOD_ROI].to_crs(_consts._EPSG_UTMxx).values, predicate='intersects')
+    buildings[_consts._COL_FLOOD_AREA] = gpd.GeoSeries([MultiPolygon(polygons=[]) for _ in range(len(buildings))], crs=_consts._EPSG_UTMxx)
     
     buildings_flood_area = pd.DataFrame(building_wd_query.T, columns=['bld_idxs', 'wd_idxs']).groupby('bld_idxs').agg(
         lambda wd_idxs: MultiPolygon(polygons=waterdepth_gdf.loc[wd_idxs].geometry.values)
     ).reset_index().rename(columns={'bld_idxs': 'bld_idx', 'wd_idxs': 'geometry'})
-    buildings_flood_area = gpd.GeoDataFrame(buildings_flood_area, geometry='geometry', crs="EPSG:3857")
+    buildings_flood_area = gpd.GeoDataFrame(buildings_flood_area, geometry='geometry', crs=_consts._EPSG_UTMxx)
     
     buildings.loc[buildings_flood_area['bld_idx'].to_list(), _consts._COL_FLOOD_AREA] = gpd.GeoSeries(
         index = buildings_flood_area['bld_idx'].to_list(),

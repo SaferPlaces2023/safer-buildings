@@ -100,6 +100,9 @@ def validate_args(
         if dl_status is None:
             raise FileNotFoundError(f"Failed to download water depth file from S3: {waterdepth_filename}. Check water argument ({_ARG_NAMES.WATER})")
         waterdepth_filename = waterdepth_filename_tmp
+
+    _consts.init_epsg_utmxx(_utils.epsg_utm_from_raster(waterdepth_filename))
+    Logger.debug(f"## EPSG UTMxx initialized from waterdepth: {_consts._EPSG_UTMxx}")
     
     if buildings_filename is not None:
         if type(buildings_filename) is not str:
