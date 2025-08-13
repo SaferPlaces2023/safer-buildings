@@ -61,7 +61,7 @@ class Test(unittest.TestCase):
             "building": None, #"s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
             "wd_thresh": None,
             "bbox": None,
-            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-flooded.geojson",
+            "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-flooded-prj.geojson",
             "t_srs": "EPSG:4326",
             "provider": f'{_consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER}',
             "filters": None,
@@ -85,7 +85,7 @@ class Test(unittest.TestCase):
         }
 
     
-        args = args_big
+        args = args_small
         
         result = main_python( ** args )
 

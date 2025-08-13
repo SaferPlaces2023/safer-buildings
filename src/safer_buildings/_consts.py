@@ -12,6 +12,16 @@ _ERROR_CODE_KEY = 'status_code'
 _OUTPUT_SUCCESS_CODE = 200
 
 
+# DOC: Projected EPSG for spatial operations
+_EPSG_UTMxx = None
+def init_epsg_utmxx(epsg_code):
+    """
+    Set the EPSG code for UTM projection.
+    """
+    global _EPSG_UTMxx
+    _EPSG_UTMxx = epsg_code
+
+
 # DOC: List of providers for safer buildings
 
 _PROVIDERS = [ ]
