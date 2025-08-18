@@ -24,9 +24,9 @@ def prepare_feture_collection(
     feature_collection = flooded_buildings.to_geo_dict()
     
     feature_collection['metadata'] = {
-        'provider': provider,
         'buildings_count': len(flooded_buildings),
         'flooded_buildings_count': int(flooded_buildings[_consts._COL_IS_FLOODED].sum()),
+        **( {'provider': provider} if provider else dict() ),
         ** summary_stats,
         ** add_ops_output_data    # !!!: Fischietti ci dirà se tenere un'intera feature collection nei metadati, in mia opinione eccessivo, meglio avere più file separati <out-name>.<add-op-name>.<out-format> (comunque già implementato)
     }
@@ -64,6 +64,14 @@ def save_results(
     
     # DOC: Save the GeoDataFrame to the local output file
     gdf_fc.to_file(filename=local_output, driver=filesystem._GPD_DRIVERS(out_ext))
+    
+    # DOC: If the output is GeoJSON, restore its metadata
+    if out_ext == 'geojson':
+        with open(local_output, 'r') as f:
+            data = json.load(f)
+            data['metadata'] = feature_collection['metadata']
+        with open(local_output, 'w') as f:
+            json.dump(data, f, indent=2)
     
     # DOC: Keep track of auxiliary files based on the output format
     local_output = [local_output] + filesystem.get_aux_files(local_output)

@@ -294,7 +294,7 @@ def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     Get the exterior ring of the first polygon in the GeoDataFrame.
     """
     gdf_rings = gdf.copy()
-    gdf_rings.to_crs(epsg=_consts._EPSG_UTMxx, inplace=True)
+    gdf_rings.to_crs(crs=_consts._EPSG_UTMxx, inplace=True)
 
     buffers = buffer(gdf_rings.geometry.values, ring_buffer)
     rings = difference(buffers, gdf_rings.geometry.values)
