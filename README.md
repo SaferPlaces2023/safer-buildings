@@ -1,5 +1,5 @@
 # safer-buildings
-Little procedures to get buildings at risk of flooding from a flood map.
+Procedures to get buildings at risk of flooding from a flood map.
 
 ## Installation option
 

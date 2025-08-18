@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "safer-buildings"
-version = "1.0.28"
+version = "1.0.29"
 description = "Little procedures to get buildings at risk of flooding from a flood map"
 readme = "README.md"
 requires-python = ">=3.8"
