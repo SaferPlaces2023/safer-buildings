@@ -203,3 +203,4 @@ tests/*
 
 # Data folder
 data/venezia-buildings-overture-merge-wfs/building_datasets/
+data/rer-buildings-overture-merge-rest/building_datasets/
