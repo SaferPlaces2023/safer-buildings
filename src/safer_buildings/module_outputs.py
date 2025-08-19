@@ -66,11 +66,11 @@ def save_results(
     gdf_fc.to_file(filename=local_output, driver=filesystem._GPD_DRIVERS(out_ext))
     
     # DOC: If the output is GeoJSON, restore its metadata
-    if out_ext == 'geojson':
-        with open(local_output, 'r') as f:
+    if out_ext == 'geojson' and 'metadata' in feature_collection:
+        with open(local_output, 'r', encoding='utf8') as f:
             data = json.load(f)
             data['metadata'] = feature_collection['metadata']
-        with open(local_output, 'w') as f:
+        with open(local_output, 'w', encoding='utf8') as f:
             json.dump(data, f, indent=2)
     
     # DOC: Keep track of auxiliary files based on the output format
