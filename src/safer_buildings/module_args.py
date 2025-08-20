@@ -216,7 +216,7 @@ def validate_args(
             raise ValueError(f'## Flood mode "{flood_mode}" could end in incorrect results as {_consts.OVERTURE} and {_consts._RER_REST_PROVIDER} providers provide only buildings. Consider using a {_ARG_NAMES.FLOOD_MODE} valued as "{_consts.FloodModes.BUFFER}" instead.')
     else:
         flood_mode = _consts.FloodModes.BUFFER
-        if provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
+        if provider is not None and provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
             flood_mode = _consts.FloodModes.ALL
 
     if feature_filters is not None:

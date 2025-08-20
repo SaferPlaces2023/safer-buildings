@@ -222,6 +222,15 @@ def compute_flood(
                         })
                         flooded_buildings, alert_method_collection = alert_method_output
                         add_ops_output_data[op.name] = alert_method_collection
+                    elif op.name == module_add_ops.GatesGuard.name:
+                        gates_guard_output = op( ** {
+                            'gdf_buildings': flooded_buildings,
+                            'gdf_water_depth': waterdepth_polygonized,
+                            'bbox': bbox,
+                            't_srs': t_srs,
+                        })
+                        flooded_buildings, gates_collection = gates_guard_output
+                        # add_ops_output_data[op.name] = gates_collection
         except Exception as e:
             raise AddOpsException.from_exception(e)
 
@@ -351,7 +360,7 @@ def compute_flood(
 @click.option(
     *_ARG_NAMES.ADD_OPS,
     callback = lambda ctx, param, value: _ARG_NAMES.parse_add_ops(value),
-    required=False, default=None, help="Additional operations to perform on the results. Supported operations depend on selected provider."
+    required=False, default=None, help=f"Additional operations to perform on the results. Implemented operations {' '.join(list(module_add_ops._ADD_OPS.keys()))}, but avaliable ones depend on selected provider and geographical area."
 )
 @click.option(
     *_ARG_NAMES.OUT_GEOJSON,
