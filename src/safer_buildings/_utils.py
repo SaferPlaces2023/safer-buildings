@@ -282,7 +282,6 @@ def ensure_geodataframe_crs(geo_df, epsg_string):
 
 def buffer_points(gdf: gpd.GeoDataFrame, buffer_meters):
     og_crs = gdf.crs
-    Logger.debug(f'------------------{_consts._EPSG_UTMxx}')
     gdf.to_crs(crs=_consts._EPSG_UTMxx, inplace=True)
     gdf['geometry'] = gdf.geometry.apply(lambda g: g.buffer(buffer_meters) if type(g) in [Point, MultiPoint, LineString, MultiLineString] else g)
     gdf = gdf.to_crs(og_crs)
@@ -292,15 +291,17 @@ def buffer_points(gdf: gpd.GeoDataFrame, buffer_meters):
 def get_polygon_ring(gdf: gpd.GeoDataFrame, ring_buffer):
     """
     Get the exterior ring of the first polygon in the GeoDataFrame.
+    gdf: gpd.GeoDataFrame
+    ring_buffer: float - buffer radius in meters
     """
     gdf_rings = gdf.copy()
-    gdf_rings.to_crs(epsg=_consts._EPSG_UTMxx, inplace=True)
+    gdf_rings.to_crs(crs=_consts._EPSG_UTMxx, inplace=True)
 
     buffers = buffer(gdf_rings.geometry.values, ring_buffer)
     rings = difference(buffers, gdf_rings.geometry.values)
 
     gdf_rings['geometry'] = rings
-    gdf_rings.to_crs(epsg=gdf.crs.to_epsg(), inplace=True)
+    gdf_rings.to_crs(crs=gdf.crs, inplace=True)
     return gdf_rings
 
 

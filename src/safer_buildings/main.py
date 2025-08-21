@@ -229,8 +229,9 @@ def compute_flood(
                             'bbox': bbox,
                             't_srs': t_srs,
                         })
-                        flooded_buildings, gates_collection = gates_guard_output
-                        # add_ops_output_data[op.name] = gates_collection
+                        streets_collection, gates_guard_collection = gates_guard_output
+                        add_ops_output_data[f'{op.name}.streets'] = streets_collection
+                        add_ops_output_data[f'{op.name}.gates'] = gates_guard_collection
         except Exception as e:
             raise AddOpsException.from_exception(e)
 

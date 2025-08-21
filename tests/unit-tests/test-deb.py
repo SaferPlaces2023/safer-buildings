@@ -1,4 +1,5 @@
 import os
+import json
 import unittest
 
 from safer_buildings import compute_flood as main_python
@@ -18,26 +19,32 @@ class Test(unittest.TestCase):
         
         args = {
             "water": "s3://saferplaces.co/Directed/data-fabric-rwl2/WD_radar_saferplaces_z7tvmb3.tif",
-            "building": "https://s3.us-east-1.amazonaws.com/saferplaces.co/Venezia/shapes/buildings/building_2.shp",
-            "wd_thresh": None,
+            "building": "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/directed-rer-overture-buildings.gpkg", #"s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson", //"https://s3.us-east-1.amazonaws.com/saferplaces.co/Venezia/shapes/buildings/building_2.shp",
+            "wd_thresh": 0,
             "bbox": None,
-            "out": "s3://saferplaces.co/Directed/data-fabric-rwl2/Rimini_coast_flooded_deb-2407.geojson",
+            "out": "s3://saferplaces.co/Directed/data-fabric-rwl2/Rimini_coast_flooded_test-js-20250820-1145.geojson",
             "t_srs": None,
-            "provider": None, #_consts._RER_REST_PROVIDER,
+            "provider": None,
             "filters": None,
-            "only_flood": False,
-            "stats": False,
+            "only_flood": True,
+            "stats": True,
             "summary": True,
-            "summary_on": "service_class",
-            "out_geojson": False,
+            "summary_on": "subtype",
+            "out_geojson": True,
 
             "version": False,
             "debug": True,
             "verbose": False,
+
+            # "token": "S4fer_api_token",
+            # "user": "saferplaces",
         }
 
     
         result = main_python( ** args )
+
+        with open('test_deb_result.json', 'w') as f:
+            json.dump(result, f, indent=4)
 
         print()
         print(result)
