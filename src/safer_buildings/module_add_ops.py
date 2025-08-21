@@ -6,7 +6,7 @@ from tqdm import tqdm
 import pandas as pd
 import geopandas as gpd
 from shapely import distance
-from shapely.geometry import box, MultiPolygon
+from shapely.geometry import box, MultiPoint, MultiPolygon
 from shapely.strtree import STRtree
 
 from . import _consts, _utils
@@ -311,8 +311,196 @@ class AlertMethod(AdditionalOperation):
 
         # DOC: Return the updated GeoDataFrame with the alert method and the alert method collection ----------------
         return gdf_buildings, alert_method_collection
+            
 
 
+
+# DOC: This is for VENEZIA_WFS_PROVIDER (Alert method to use)
+class GatesGuard(AdditionalOperation):
+    """
+    This operation retrieves the gates guard for flooded buildings based on flooded streets.
+    # TODO: continue ...
+    """
+
+    name = 'gates_guard'
+
+    description = {
+        'en': """ to be written ... """,
+
+        'it': """ da scrivere ...""",
+    }
+
+    args = [
+        # DOC: The buffer to use around water depth areas (in meters). Default is 100.0 meters.
+        'street_layer_id',
+        'street_buffer',
+        'flood_area_thresh',
+        'gates_buffer',
+        'max_distance',
+    ]
+
+    _street_graph_layer_id = f'{_consts._VENEZIA_WFS_PROVIDER}/c0107057_grafostrade'
+    _gates_layer_id = f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0108103_cancelli'
+    
+    _street_graph_fid = '_fid'
+    _gate_fid = '_fid'
+    _gate_basic_attributes = ['id', '_fid', 'denom', 'indirizzo', 'addetti_t']
+
+    _default_street_layer_id = f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0105052_stradestrategiche'  # DOC: other can be `c0107057_grafostrade` but it is huge
+    _default_street_buffer = 3.0
+    _default_flood_area_thresh = 25.0
+    _default_gates_buffer = 3.0
+    _default_max_distance = 1000.0  # DOC: max distance to search for gates from flooded street
+
+    def __init__(self, street_layer_id: str = _default_street_layer_id, street_buffer: float = _default_street_buffer, flood_area_thresh: float = _default_flood_area_thresh, gates_buffer: float = _default_gates_buffer, max_distance: float = 5000.0):
+        super().__init__(name=self.name)
+        self._configure(street_layer_id=street_layer_id, street_buffer=street_buffer, flood_area_thresh=flood_area_thresh, gates_buffer=gates_buffer, max_distance=max_distance)
+
+    def _configure(self, street_layer_id: str = _default_street_layer_id, street_buffer: float = _default_street_buffer, flood_area_thresh: float = _default_flood_area_thresh, gates_buffer: float = _default_gates_buffer, max_distance: float = _default_max_distance):
+        if _consts.VeneziaLayers is None:
+            _consts.init_venezia_wfs_layers()
+        if street_layer_id not in _consts._PROVIDERS:
+            raise ValueError(f"Invalid street layer: {street_layer_id}. Available layers: {_consts._PROVIDERS}")
+        self.street_layer_id = street_layer_id
+        self.street_buffer = float(street_buffer) if type(street_buffer) is str else street_buffer if type(street_buffer) is not None else self._default_street_buffer
+        self.flood_area_thresh = float(flood_area_thresh) if type(flood_area_thresh) is str else flood_area_thresh if type(flood_area_thresh) is not None else self._default_flood_area_thresh
+        self.gates_buffer = float(gates_buffer) if type(gates_buffer) is str else gates_buffer if type(gates_buffer) is not None else self._default_gates_buffer
+        self.max_distance = float(max_distance) if type(max_distance) is str else max_distance if type(max_distance) is not None else self._default_max_distance
+
+
+    def bfs_streets_gates(self, gdf_streets_graph, street_graph_fid, gdf_gate, max_distance=_default_max_distance):
+        """
+        BFS to search for gates in the street graph starting from a flooded street.
+        """
+        streets_graph_fids = [ street_graph_fid ]
+        street_gates_df = pd.DataFrame()
+        i_start = 0
+
+        street_distances = dict()
+        street_distances[street_graph_fid] = 0       
+
+        while len(streets_graph_fids) - i_start > 0:
+            s_fid = streets_graph_fids[i_start]
+            i_start += 1
+
+            street_graph = gdf_streets_graph[gdf_streets_graph[self._street_graph_fid] == s_fid].iloc[0]
+            
+            # DOC: If current street has gates the add them to the gate_ids set
+            if len(street_graph.gate_idx) > 0:
+                found_gates = gdf_gate.loc[street_graph.gate_idx][self._gate_basic_attributes]
+                found_gates['distance'] = street_distances[s_fid]
+                street_gates_df = pd.concat([street_gates_df,  found_gates], ignore_index=True).reset_index(drop=True)
+                del street_distances[s_fid]
+                continue
+            
+            # DOC: Otherwise, find adjacent streets and add them to the queue if not already present
+            for adj_fid in filter(lambda adj_fid: adj_fid not in streets_graph_fids, street_graph[f'adjacent_{self._street_graph_fid}']):
+                street_graph_adj = gdf_streets_graph[gdf_streets_graph[self._street_graph_fid] == adj_fid].iloc[0]
+
+                # distance = gdf_streets_graph[gdf_streets_graph[self._street_graph_fid] == street_graph_fid].iloc[0]['geometry_prj'].distance(street_graph_adj['geometry_prj'])   # DOC: pure distance between two street geometries
+                distance = street_distances[s_fid] + street_graph['geometry_prj'].centroid.distance(street_graph_adj['geometry_prj'].centroid) # DOC: distance between centroids of streets in path
+                
+                if distance <= max_distance:
+                    streets_graph_fids.append(adj_fid)
+                    street_distances[adj_fid] = distance
+                
+            del street_distances[s_fid]   # DOC: avoid considering distance to the same street again
+
+        street_gates = street_gates_df.sort_values(by='distance').drop_duplicates(subset=self._gate_fid, keep='first').reset_index(drop=True).to_dict(orient='records') if not street_gates_df.empty else []
+        return street_gates
+
+
+    def __call__(self, **kwargs):
+
+        # DOC: Extract kwargs values ----------------------------------------------------------------------------------
+        gdf_wd = kwargs['gdf_water_depth']
+        bbox = kwargs['bbox']
+        t_srs = kwargs['t_srs']
+
+        # DOC: Get street graph and street layer with which compute flood ---------------------------------------------
+        gdf_streets_graph = module_retriever.retrieve_venezia_wfs(
+            provider = self._street_graph_layer_id,
+            bbox = bbox,
+            buffer_points = False
+        )        
+        gdf_streets = module_retriever.retrieve_venezia_wfs(
+            provider = self.street_layer_id,
+            bbox = bbox,
+            buffer_points = False
+        )
+        gdf_gate = module_retriever.retrieve_venezia_wfs(
+            provider = self._gates_layer_id,
+            bbox = bbox,
+            buffer_points = False
+        )
+
+        # DOC: Build G(V,E) from street graph layer --------------------------------------------------------------------
+        """
+        L'idea: le geometrie non sono un grafo e l'intersezione delle geometrie non funziona per la sua costruzione causa ponti e gallerie.
+        Noto però che le strade hanno geometrie diverse per ogni incrocio:
+        quindi per ogni geometria salvo punto iniziale e finale (endpoint), esplodo (2 record a geometria), self-join su endpoint.
+        """
+        gdf_nodes = gpd.GeoDataFrame(geometry = gdf_streets_graph.geometry.apply(lambda g: MultiPoint(points=[ list(g.geoms)[0].coords[0], list(g.geoms)[0].coords[-1] ])), crs=gdf_streets_graph.crs)
+        gdf_nodes[self._street_graph_fid] = gdf_streets_graph[self._street_graph_fid]
+        point_to_id = lambda p: int(''.join(map(str, list(*p.coords))).replace('.', ''))
+        gdf_nodes = gdf_nodes.explode(ignore_index=True).reset_index(drop=True)
+        gdf_nodes['endpoint'] = gdf_nodes.geometry.apply(lambda g: point_to_id(g))
+
+        gdf_nodes = gdf_nodes.merge(gdf_nodes, left_on='endpoint', right_on='endpoint', suffixes=('_start', '_end'))
+        gdf_nodes = gdf_nodes[gdf_nodes[f'{self._street_graph_fid}_start'] != gdf_nodes[f'{self._street_graph_fid}_end']].reset_index(drop=True)
+
+        gdf_nodes[f'endpoint_{self._street_graph_fid}'] = gdf_nodes.apply(lambda r: [r[f'{self._street_graph_fid}_start'], r[f'{self._street_graph_fid}_end']], axis=1)
+        gdf_nodes = gdf_nodes.explode(f'endpoint_{self._street_graph_fid}', ignore_index=True).reset_index(drop=True)
+        gdf_nodes = gdf_nodes.groupby(f'endpoint_{self._street_graph_fid}').aggregate({f'{self._street_graph_fid}_start': list, f'{self._street_graph_fid}_end': list}).reset_index()
+        gdf_nodes[f'adjacent_{self._street_graph_fid}'] = gdf_nodes.apply(lambda r: list(set(r[f'{self._street_graph_fid}_start'] + r[f'{self._street_graph_fid}_end'])), axis=1)
+        gdf_nodes = gdf_nodes.drop(columns=[f'{self._street_graph_fid}_start', f'{self._street_graph_fid}_end']).drop_duplicates(subset=[f'endpoint_{self._street_graph_fid}'], ignore_index=True)
+        gdf_streets_graph = gdf_streets_graph.merge(gdf_nodes, left_on=self._street_graph_fid, right_on=f'endpoint_{self._street_graph_fid}', suffixes=('', '_node'), how='left')
+        gdf_streets_graph[f'adjacent_{self._street_graph_fid}'] = gdf_streets_graph[f'adjacent_{self._street_graph_fid}'].apply(lambda l: l if type(l) is list else [])  # DOC: ensure adjacent is a list
+        
+        # DOC: Create UTMxx projected CRS for spatial operations ------------------------------------------------------
+        gdf_wd['geometry_prj'] = gdf_wd['geometry'].to_crs(_consts._EPSG_UTMxx)
+        gdf_gate['geometry_prj'] = gdf_gate['geometry'].to_crs(_consts._EPSG_UTMxx)
+        gdf_streets_graph['geometry_prj'] = gdf_streets_graph['geometry'].to_crs(_consts._EPSG_UTMxx).buffer(self.street_buffer)
+        gdf_streets['geometry_prj'] = gdf_streets['geometry'].to_crs(_consts._EPSG_UTMxx).buffer(self.street_buffer)
+
+        # DOC: Compute flooded streets --------------------------------------------------------------------------------
+        wd_tree = STRtree(gdf_wd['geometry_prj'].values)
+        street_in_wd = pd.DataFrame(wd_tree.query(gdf_streets['geometry_prj'].values, predicate='intersects').T, columns=['street_idx', 'wd_idx'])
+        street_in_wd['flood_area'] = street_in_wd.apply(lambda r: gdf_streets.loc[r['street_idx']]['geometry_prj'].intersection(gdf_wd.loc[r['wd_idx']]['geometry_prj']).area, axis=1)
+        street_in_wd = street_in_wd[street_in_wd['flood_area'] >= self.flood_area_thresh]
+        gdf_streets['is_flooded'] = gdf_streets.index.isin(street_in_wd['street_idx'])
+        Logger.debug(f"Number of flooded streets: {gdf_streets['is_flooded'].sum()} out of {len(gdf_streets)}")
+
+        # DOC: Search gates for flooded streets -----------------------------------------------------------------------
+        
+        # DOC: Assign gate_idx to streets in the street graph
+        gate_tree = STRtree(gdf_gate['geometry_prj'].buffer(self.gates_buffer).values)
+        streets_graph_with_gate = pd.DataFrame(gate_tree.query(gdf_streets_graph['geometry_prj'].values, predicate='intersects').T, columns=['street_idx', 'gate_idx']).groupby('street_idx').agg(list).reset_index()
+        gdf_streets_graph['gate_idx'] = [list() for _ in range(len(gdf_streets_graph))]
+        gdf_streets_graph.loc[streets_graph_with_gate['street_idx'], 'gate_idx'] = pd.Series(streets_graph_with_gate['gate_idx'].values, index=streets_graph_with_gate['street_idx']).values
+
+        # DOC: Foreach flooded street, search for gates in the street graph
+        gdf_streets['gates_active'] = [list() for _ in range(len(gdf_streets))]
+        gdf_streets.loc[gdf_streets.is_flooded, 'gates_active'] = gdf_streets[gdf_streets['is_flooded']].apply(
+            lambda r: self.bfs_streets_gates(
+                gdf_streets_graph = gdf_streets_graph,
+                street_graph_fid = r[self._street_graph_fid],
+                gdf_gate = gdf_gate,
+                max_distance = self.max_distance
+            ),
+            axis=1
+        )
+        Logger.debug(f"## Found {gdf_streets['gates_active'].apply(lambda g: len(g) > 0).sum()} flooded streets with gates out of {gdf_streets.is_flooded.sum()} total flooded streets.")
+
+        # DOC: Prepare features collection to be returned -------------------------------------------------------------
+        all_gates_found = gdf_streets['gates_active'].explode().dropna().reset_index(drop=True).apply(lambda g: g[self._gate_fid]).unique().tolist()
+        gdf_gate['active'] = gdf_gate[self._gate_fid].isin(all_gates_found)
+        gdf_gate = _utils.safe_json_df(gdf_gate.drop(columns=['geometry_prj']).to_crs(crs=t_srs))
+        gdf_streets = _utils.safe_json_df(gdf_streets.drop(columns=['geometry_prj']).to_crs(crs=t_srs))
+        gates_collection = _utils.set_crs_feature_collection(gdf_gate.to_geo_dict(), t_srs)
+        streets_collection = _utils.set_crs_feature_collection(gdf_streets.to_geo_dict(), t_srs)
+
+        return streets_collection, gates_collection
 
 
 
@@ -331,6 +519,16 @@ _ADD_OPS = {
     AlertMethod.name: {
         'class': AlertMethod,
         'args': AlertMethod.args,
+        'providers': [
+            _consts._VENEZIA_WFS_PROVIDER,
+            _consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER,
+            _consts._OVERTURE_PROVIDER
+        ]
+    },
+
+    GatesGuard.name: {
+        'class': GatesGuard,
+        'args': GatesGuard.args,
         'providers': [
             _consts._VENEZIA_WFS_PROVIDER,
             _consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER,

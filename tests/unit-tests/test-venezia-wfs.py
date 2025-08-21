@@ -24,22 +24,23 @@ class Test(unittest.TestCase):
         safer-buildings --water s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif --out s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-nearest_pump.geojson --provider VENEZIA-WFS/v_pc_p0106011_scuole --summary --stats --add_ops nearby_pumps --debug
         """
         
-        bbox_lotto_1 = [11.9360964, 44.9937129, 12.3501891, 45.3141472]
+        # bbox_lotto_1 = [11.9360964, 44.9937129, 12.3501891, 45.3141472]
 
         args_big = {
             "water": "s3://saferplaces.co/Venezia/WaterDepthsv2/ICON_2I_SURFACE_PRESSURE_LEVELS_tp/2025-07-28/00-00/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h.tif", #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif"
-            # "building": "s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
-            "wd_thresh": None,
-            "bbox": bbox_lotto_1,
-            "out": "s3://saferplaces.co/Venezia/SaferBuildings/gpkg/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2_outformat.gpkg",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
+            "building": "s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
+            # "building": "s3://saferplaces.co/Venezia/shapes/buildings/venezia_wfs_critical_sites_2.gpkg",
+            "wd_thresh": 0.5,
+            # "bbox": bbox_lotto_1,
+            "out": "s3://saferplaces.co/Venezia/SaferBuildings/gpkg/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2_-all-add-ops.gpkg",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
             "t_srs": "EPSG:4326",
             # "provider": f'{_consts._VENEZIA_WFS_PROVIDER}', #/v_pc_p0106011_scuole',
-            "provider": f'{_consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER}',
+            "provider": None, #f'{_consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER}',
             "filters": None,
             "only_flood": False,
-            "stats": True,
-            "summary": True,
-            "summary_on": "subtype",    # None,
+            "stats": False,
+            "summary": False,
+            # "summary_on": "subtype",    # None,
             "add_ops": {
                 module_add_ops.NearbyPumps.name: {
                     # "wd_buffer": 2000.0,
@@ -47,6 +48,13 @@ class Test(unittest.TestCase):
                 },
                 module_add_ops.AlertMethod.name: {
                     "wd_buffer": 200.0,
+                },
+                module_add_ops.GatesGuard.name: {
+                    "street_layer_id": f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0105052_stradestrategiche',  # DOC: default value
+                    "street_buffer": 3, # DOC: default value
+                    "flood_area_thresh": 25,    # DOC: default value
+                    "gates_buffer": 3,  # DOC: default value
+                    "max_distance": 1000,   # DOC: default value
                 }
             },
             "out_geojson": False,
@@ -58,23 +66,30 @@ class Test(unittest.TestCase):
 
         args_small = {
             "water":"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif",
-            "building": None, #"s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
+            "building": "s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
             "wd_thresh": None,
             "bbox": None,
             "out": "s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-flooded-prj.geojson",
             "t_srs": "EPSG:4326",
-            "provider": f'{_consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER}',
+            "provider": None, #f'{_consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER}',
             "filters": None,
             "only_flood": False,
             "stats": True,
             "summary": True,
             "summary_on": "service_id",    # None,
             "add_ops": {
-                module_add_ops.NearbyPumps.name: {
-                    "max_distance": 4000.0,
-                },
-                module_add_ops.AlertMethod.name: {
-                    "wd_buffer": 2000.0,
+                # module_add_ops.NearbyPumps.name: {
+                #     "max_distance": 4000.0,
+                # },
+                # module_add_ops.AlertMethod.name: {
+                #     "wd_buffer": 2000.0,
+                # },
+                module_add_ops.GatesGuard.name: {
+                    "street_layer_id": f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0105052_stradestrategiche',  # DOC: default value
+                    "street_buffer": 3, # DOC: default value
+                    "flood_area_thresh": 25,    # DOC: default value
+                    "gates_buffer": 3,  # DOC: default value
+                    "max_distance": 3000,   # DOC: default value
                 }
             },
             "out_geojson": False,
@@ -85,7 +100,7 @@ class Test(unittest.TestCase):
         }
 
     
-        args = args_small
+        args = args_big
         
         result = main_python( ** args )
 

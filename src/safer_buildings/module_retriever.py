@@ -57,6 +57,9 @@ def retrieve_overture(bbox):
 
 
 def retrieve_rer_rest(provider, bbox):
+    if _consts.RegioneEmiliaRomagnaLayers is None:
+        _consts.init_rer_rest_layers()
+
     # DOC: Retrieve from all subservices of the requested one.
     service_ids = list(map(int, provider.split('/')[1:])) if provider != 'RER-REST' else _consts.RegioneEmiliaRomagnaLayers[pd.isnull(_consts.RegioneEmiliaRomagnaLayers.subLayerIds)].id.unique().tolist()
     while any([_consts.RegioneEmiliaRomagnaLayers[_consts.RegioneEmiliaRomagnaLayers.id == service_id].iloc[0].subLayerIds is not None for service_id in service_ids]):
@@ -145,6 +148,9 @@ def retrieve_rer_rest(provider, bbox):
 
 
 def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
+    if _consts.VeneziaLayers is None:
+        _consts.init_venezia_wfs_layers()
+
     service_ids = None
     if provider == _consts._VENEZIA_WFS_PROVIDER:
         service_ids = _consts.VeneziaLayers.Name.unique().tolist()
