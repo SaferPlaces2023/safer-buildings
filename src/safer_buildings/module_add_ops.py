@@ -433,7 +433,6 @@ class GatesGuard(AdditionalOperation):
             bbox = bbox,
             buffer_points = False
         )
-        gdf_gate.to_file('gdf_gate.gpkg', driver='GPKG')
 
         # DOC: Build G(V,E) from street graph layer --------------------------------------------------------------------
         """
@@ -481,8 +480,8 @@ class GatesGuard(AdditionalOperation):
         gdf_streets_graph.loc[streets_graph_with_gate['street_idx'], 'gate_idx'] = pd.Series(streets_graph_with_gate['gate_idx'].values, index=streets_graph_with_gate['street_idx']).values
 
         # DOC: Foreach flooded street, search for gates in the street graph
-        gdf_streets['gates_guard'] = [list() for _ in range(len(gdf_streets))]
-        gdf_streets.loc[gdf_streets.is_flooded, 'gates_guard'] = gdf_streets[gdf_streets['is_flooded']].apply(
+        gdf_streets['gates_active'] = [list() for _ in range(len(gdf_streets))]
+        gdf_streets.loc[gdf_streets.is_flooded, 'gates_active'] = gdf_streets[gdf_streets['is_flooded']].apply(
             lambda r: self.bfs_streets_gates(
                 gdf_streets_graph = gdf_streets_graph,
                 street_graph_fid = r[self._street_graph_fid],
@@ -491,17 +490,17 @@ class GatesGuard(AdditionalOperation):
             ),
             axis=1
         )
-        Logger.debug(f"## Found {gdf_streets['gates_guard'].apply(lambda g: len(g) > 0).sum()} flooded streets with gates out of {gdf_streets.is_flooded.sum()} total flooded streets.")
+        Logger.debug(f"## Found {gdf_streets['gates_active'].apply(lambda g: len(g) > 0).sum()} flooded streets with gates out of {gdf_streets.is_flooded.sum()} total flooded streets.")
 
         # DOC: Prepare features collection to be returned -------------------------------------------------------------
-        all_gates_found = gdf_streets['gates_guard'].explode().dropna().reset_index(drop=True).apply(lambda g: g[self._gate_fid]).unique().tolist()
-        gdf_gates_guard = gdf_gate[gdf_gate[self._gate_fid].isin(all_gates_found)].reset_index(drop=True)
-        gdf_gates_guard = _utils.safe_json_df(gdf_gates_guard.drop(columns=['geometry_prj']).to_crs(crs=t_srs))
+        all_gates_found = gdf_streets['gates_active'].explode().dropna().reset_index(drop=True).apply(lambda g: g[self._gate_fid]).unique().tolist()
+        gdf_gate['active'] = gdf_gate[self._gate_fid].isin(all_gates_found)
+        gdf_gate = _utils.safe_json_df(gdf_gate.drop(columns=['geometry_prj']).to_crs(crs=t_srs))
         gdf_streets = _utils.safe_json_df(gdf_streets.drop(columns=['geometry_prj']).to_crs(crs=t_srs))
-        gates_guard_collection = _utils.set_crs_feature_collection(gdf_gates_guard.to_geo_dict(), t_srs)
+        gates_collection = _utils.set_crs_feature_collection(gdf_gate.to_geo_dict(), t_srs)
         streets_collection = _utils.set_crs_feature_collection(gdf_streets.to_geo_dict(), t_srs)
 
-        return streets_collection, gates_guard_collection
+        return streets_collection, gates_collection
 
 
 

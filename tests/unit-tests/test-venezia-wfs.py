@@ -32,7 +32,7 @@ class Test(unittest.TestCase):
             # "building": "s3://saferplaces.co/Venezia/shapes/buildings/venezia_wfs_critical_sites_2.gpkg",
             "wd_thresh": 0.5,
             # "bbox": bbox_lotto_1,
-            "out": "s3://saferplaces.co/Venezia/SaferBuildings/gpkg/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2_outformat.gpkg",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
+            "out": "s3://saferplaces.co/Venezia/SaferBuildings/gpkg/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2_-all-add-ops.gpkg",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
             "t_srs": "EPSG:4326",
             # "provider": f'{_consts._VENEZIA_WFS_PROVIDER}', #/v_pc_p0106011_scuole',
             "provider": None, #f'{_consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER}',
@@ -42,19 +42,19 @@ class Test(unittest.TestCase):
             "summary": False,
             # "summary_on": "subtype",    # None,
             "add_ops": {
-                # module_add_ops.NearbyPumps.name: {
-                #     # "wd_buffer": 2000.0,
-                #     "max_distance": 2000.0,  # DOC: Set the maximum distance for nearby pumps
-                # },
-                # module_add_ops.AlertMethod.name: {
-                #     "wd_buffer": 200.0,
-                # },
+                module_add_ops.NearbyPumps.name: {
+                    # "wd_buffer": 2000.0,
+                    "max_distance": 2000.0,  # DOC: Set the maximum distance for nearby pumps
+                },
+                module_add_ops.AlertMethod.name: {
+                    "wd_buffer": 200.0,
+                },
                 module_add_ops.GatesGuard.name: {
                     "street_layer_id": f'{_consts._VENEZIA_WFS_PROVIDER}/v_pc_p0105052_stradestrategiche',  # DOC: default value
                     "street_buffer": 3, # DOC: default value
                     "flood_area_thresh": 25,    # DOC: default value
                     "gates_buffer": 3,  # DOC: default value
-                    "max_distance": 2000,   # DOC: default value
+                    "max_distance": 1000,   # DOC: default value
                 }
             },
             "out_geojson": False,
