@@ -27,7 +27,7 @@ def filter_by_feature(
 
     if only_flood:
         Logger.debug('## Filtering only flooded buildings ...')
-        gdf = gdf[gdf[_consts._COL_IS_FLOODED]]
+        gdf = gdf[gdf[_consts._COL_IS_FLOODED]].copy().reset_index(drop=True)
         Logger.debug(f"### Only flooded buildings retained: {len(gdf)} out of {len(gdf)}.")
 
     if len(feature_filters) > 0:
