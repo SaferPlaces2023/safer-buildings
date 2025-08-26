@@ -155,8 +155,7 @@ def compute_flood(
             Logger.debug('# Filtering features ...')
             flooded_buildings = module_stats.filter_by_feature(
                 gdf = flooded_buildings,
-                feature_filters = feature_filters,
-                only_flood = only_flood
+                feature_filters = feature_filters
             )
             Logger.debug(f"## Filtered {len(flooded_buildings)} buildings out from {len(flooded_buildings)}.")
         except Exception as e:
@@ -167,16 +166,16 @@ def compute_flood(
             if compute_stats:
                 Logger.debug('# Computing water depth stats over flooded buildings ...')
                 flooded_buildings = module_stats.compute_wd_stats(
-                    waterdepth_filename=waterdepth_filename,
-                    waterdepth_mask=waterdepth_polygonized,
-                    waterdepth_thresh=wd_thresh,
-                    buildings=flooded_buildings,
-                    flood_mode=flood_mode
+                    waterdepth_filename = waterdepth_filename,
+                    waterdepth_mask = waterdepth_polygonized,
+                    waterdepth_thresh = wd_thresh,
+                    buildings = flooded_buildings,
+                    flood_mode = flood_mode
                 )
                 Logger.debug("## Water depth stats computed for flooded buildings.")
         except Exception as e:
             raise StatsException.from_exception(e)
-            
+        
         
         # DOC: 7 — Compute summary if requested
         try:
@@ -184,20 +183,32 @@ def compute_flood(
             if compute_summary:
                 Logger.debug('# Computing summary statistics for flooded buildings ...')
                 summary_stats = module_stats.compute_wd_summary(
-                    buildings=flooded_buildings,
-                    summary_on=summary_on,
-                    provider=provider,
-                    include_stats=compute_stats,
+                    buildings = flooded_buildings,
+                    summary_on = summary_on,
+                    provider = provider,
+                    include_stats = compute_stats,
                 )
                 summary_stats_ouput_data = { 'summary': summary_stats }
                 Logger.debug("## Summary statistics computed for flooded buildings.") 
         except Exception as e:
             raise StatsException.from_exception(e)
         
-        # DOC: 7.1 — Drop other geometry columns
+
+        # DOC: 8 — Filter only flooded buildings if requested
+        try:
+            flooded_buildings = module_stats.filter_only_flood(
+                gdf = flooded_buildings,
+                only_flood = only_flood,
+            )            
+        except Exception as e:
+            raise StatsException.from_exception(e)
+        
+        
+        # DOC: 8.1 — Drop other geometry columns
         flooded_buildings = flooded_buildings.drop(columns = set(flooded_buildings.columns) & set([_consts._COL_FLOOD_ROI, _consts._COL_FLOOD_AREA, _consts._COL_FLOOD_GEOMETRY, _consts._COL_FLOOD_COORDS]))
 
-        # DOC: 8 — Run additional operations if any
+        
+        # DOC: 9 — Run additional operations if any
         try:
             add_ops_output_data = dict()
             if add_ops is not None:
@@ -236,7 +247,7 @@ def compute_flood(
             raise AddOpsException.from_exception(e)
 
 
-        # DOC: 9 — Return results
+        # DOC: 10 — Return results
         try:
             Logger.debug('# Preparing geojson output results ...')
             feature_collection = module_outputs.prepare_feture_collection(
@@ -250,7 +261,7 @@ def compute_flood(
             raise OutputsException.from_exception(e)     
             
         
-        # DOC: 10 — Save results to file
+        # DOC: 11 — Save results to file
         try:
             Logger.debug(f'# Saving results to {out} ...')
             module_outputs.save_results(
@@ -268,7 +279,7 @@ def compute_flood(
             raise OutputsException.from_exception(e)
         
         
-        # DOC: 11 — Return output
+        # DOC: 12 — Return output
         try: 
             Logger.debug('# Returning output ...')
             output = module_outputs.prepare_output(

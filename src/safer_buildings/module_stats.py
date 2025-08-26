@@ -18,17 +18,11 @@ from .module_log import Logger
 
 def filter_by_feature(
     gdf: gpd.GeoDataFrame,
-    feature_filters: list[dict[str, list]],
-    only_flood: bool
+    feature_filters: list[dict[str, list]]
 ) -> gpd.GeoDataFrame:
     """
     Filter a GeoDataFrame by a list of filters.
     """
-
-    if only_flood:
-        Logger.debug('## Filtering only flooded buildings ...')
-        gdf = gdf[gdf[_consts._COL_IS_FLOODED]].copy().reset_index(drop=True)
-        Logger.debug(f"### Only flooded buildings retained: {len(gdf)} out of {len(gdf)}.")
 
     if len(feature_filters) > 0:
         filtered_gdfs = []
@@ -49,6 +43,22 @@ def filter_by_feature(
         return filtered_gdf
     else:
         return gdf
+    
+
+def filter_only_flood(
+    gdf: gpd.GeoDataFrame,
+    only_flood: bool
+):
+    """
+    Filter a GeoDataFrame to only include flooded buildings.
+    """
+    
+    if only_flood:
+        Logger.debug('## Filtering only flooded buildings ...')
+        gdf = gdf[gdf[_consts._COL_IS_FLOODED]].copy().reset_index(drop=True)
+        Logger.debug(f"### Only flooded buildings retained: {len(gdf)} out of {len(gdf)}.")
+    
+    return gdf
     
 
 def compute_wd_stats(
