@@ -18,11 +18,11 @@ class Test(unittest.TestCase):
         """
         
         args = {
-            "water": "s3://saferplaces.co/Directed/data-fabric-rwl2/WD_radar_saferplaces_z7tvmb3.tif",
+            "water": "s3://saferplaces.co/Directed/data-fabric-rwl2/WD_radar_saferplaces_a3j5sxr.tif", #"s3://saferplaces.co/Directed/data-fabric-rwl2/WD_radar_saferplaces_0fw6zyg.tif",
             "building": "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/directed-rer-overture-buildings.gpkg", #"s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson", //"https://s3.us-east-1.amazonaws.com/saferplaces.co/Venezia/shapes/buildings/building_2.shp",
-            "wd_thresh": 0,
+            "wd_thresh": 0.1,
             "bbox": None,
-            "out": "s3://saferplaces.co/Directed/data-fabric-rwl2/Rimini_coast_flooded_test-js-20250820-1145.geojson",
+            "out": "s3://saferplaces.co/Directed/data-fabric-rwl2/Rimini_coast_flooded_test-js-20250902-1329.geojson",
             "t_srs": None,
             "provider": None,
             "filters": None,
@@ -30,7 +30,7 @@ class Test(unittest.TestCase):
             "stats": True,
             "summary": True,
             "summary_on": "subtype",
-            "out_geojson": True,
+            "out_geojson": False,
 
             "version": False,
             "debug": True,

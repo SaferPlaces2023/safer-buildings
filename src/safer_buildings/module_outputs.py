@@ -56,7 +56,10 @@ def save_results(
         out = filesystem.forceext(out, f"{out_postfix}.{out_ext}")
 
     # DOC: Read the feature collection and convert to GeoDataFrame (useful for saving file in different formats)
-    gdf_fc = gpd.GeoDataFrame.from_features(feature_collection['features'], crs=feature_collection['crs']['properties']['name'])
+    if len(feature_collection.get('features', [])) > 0:
+        gdf_fc = gpd.GeoDataFrame.from_features(feature_collection['features'], crs=feature_collection['crs']['properties']['name'])
+    else:
+        gdf_fc = gpd.GeoDataFrame(geometry=[], crs=feature_collection['crs']['properties']['name'])
 
     # DOC: If the output is S3, local output is a temporary file
     if out.startswith('s3://'):
