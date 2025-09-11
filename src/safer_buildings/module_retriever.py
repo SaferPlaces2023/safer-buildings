@@ -166,11 +166,11 @@ def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
             "request":"GetFeature",
             "TYPENAME": service_id,
             "outputFormat": "application/json",
-            "srsName": _consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].DefaultSRS # ???: srsname = _consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].DefaultSRS, allow_override=True` but data from server are sent in 4326
+            "srsName": _consts.VeneziaLayers[_consts.VeneziaLayers.Name == service_id].iloc[0].DefaultSRS
         }
         response_data = requests.get(_consts._VENEZIA_WFS_SERVICE_URL, params=params, verify=False)
         geojson_io = io.StringIO(response_data.text)
-        wfs_gdf = gpd.read_file(geojson_io).set_crs(crs="EPSG:4326").to_crs(bbox.crs)
+        wfs_gdf = gpd.read_file(geojson_io).set_crs(crs=params['srsName']).to_crs(bbox.crs)
         wfs_gdf = wfs_gdf.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         wfs_gdf['service_id'] = service_id
         gdf_layers.append(wfs_gdf)
