@@ -20,7 +20,7 @@ def poligonyze_waterdepth(
         band = 1,
         mask_builder = lambda wd: wd > wd_threshold,    # Significant water depth threshold
         bbox = bbox
-    )
+    ).reset_index(drop=True)
     return waterdepth_polygonized
 
 
@@ -38,7 +38,7 @@ def compute_flood_roi_geometry(
 
     # DOC: If flood_mode is IN_AREA, use the building geometries as flood ROI.
     elif flood_mode == _consts.FloodModes.IN_AREA:
-        buildings[_consts._COL_FLOOD_ROI] = buildings.geometry
+        buildings[_consts._COL_FLOOD_ROI] = buildings.geometry.to_crs(_consts._EPSG_UTMxx).buffer(0).to_crs(buildings.crs)
 
     # DOC: If flood_mode is ALL, use the buffered building geometries as flood ROI.
     elif flood_mode == _consts.FloodModes.ALL:
