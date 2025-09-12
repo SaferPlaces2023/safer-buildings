@@ -212,8 +212,8 @@ def validate_args(
             raise ValueError(f"Invalid flood mode: {flood_mode}. Valid flood modes are: {_consts._FLOOD_MODES}. Check flood_mode argument ({_ARG_NAMES.FLOOD_MODE})")
         if flood_mode == _consts.FloodModes.BUFFER and provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
             raise ValueError(f'## Flood mode "{_consts.FloodModes.BUFFER}" could end in incorrect results as {_consts._VENEZIA_WFS_PROVIDER} provider provides also some open-areas. Consider using a {_ARG_NAMES.FLOOD_MODE} valued as "{_consts.FloodModes.IN_AREA}" or "{_consts.FloodModes.ALL}" instead.')
-        if flood_mode in (_consts.FloodModes.IN_AREA, _consts.FloodModes.ALL) and (provider == _consts.OVERTURE or provider.startswith(_consts._RER_REST_PROVIDER)):
-            raise ValueError(f'## Flood mode "{flood_mode}" could end in incorrect results as {_consts.OVERTURE} and {_consts._RER_REST_PROVIDER} providers provide only buildings. Consider using a {_ARG_NAMES.FLOOD_MODE} valued as "{_consts.FloodModes.BUFFER}" instead.')
+        if flood_mode in (_consts.FloodModes.IN_AREA, _consts.FloodModes.ALL) and (provider == _consts._OVERTURE_PROVIDER or provider.startswith(_consts._RER_REST_PROVIDER)):
+            raise ValueError(f'## Flood mode "{flood_mode}" could end in incorrect results as {_consts._OVERTURE_PROVIDER} and {_consts._RER_REST_PROVIDER} providers provide only buildings. Consider using a {_ARG_NAMES.FLOOD_MODE} valued as "{_consts.FloodModes.BUFFER}" instead.')
     else:
         flood_mode = _consts.FloodModes.BUFFER
         if provider is not None and provider.startswith(_consts._VENEZIA_WFS_PROVIDER):
