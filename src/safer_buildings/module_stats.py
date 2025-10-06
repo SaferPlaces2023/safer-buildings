@@ -92,12 +92,12 @@ def fast_compute_wd_stats(
         }
     )
     stats_map = {
-        'flood_wd_min': lambda wd_vals: np.nanmin(wd_vals),
-        'flood_wd_25perc': lambda wd_vals: np.nanpercentile(wd_vals, 25),
-        'flood_wd_mean': lambda wd_vals: np.nanmean(wd_vals),
-        'flood_wd_median': lambda wd_vals: np.nanmedian(wd_vals),
-        'flood_wd_75perc': lambda wd_vals: np.nanpercentile(wd_vals, 75),
-        'flood_wd_max': lambda wd_vals: np.nanmax(wd_vals),
+        'flood_wd_min': lambda wd_vals: round(np.nanmin(wd_vals), 3),
+        'flood_wd_25perc': lambda wd_vals: round(np.nanpercentile(wd_vals, 25), 3),
+        'flood_wd_mean': lambda wd_vals: round(np.nanmean(wd_vals), 3),
+        'flood_wd_median': lambda wd_vals: round(np.nanmedian(wd_vals), 3),
+        'flood_wd_75perc': lambda wd_vals: round(np.nanpercentile(wd_vals, 75), 3),
+        'flood_wd_max': lambda wd_vals: round(np.nanmax(wd_vals), 3),
     }
     # DOC: Aggregate results by building index and apply stats functions
     builidings_wd_idx = builidings_wd_idx.groupby('bld_idx').agg(list(stats_map.values()))

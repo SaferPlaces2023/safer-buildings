@@ -1,9 +1,12 @@
 import os
 import sys
 import math
+import json
+import orjson
 import logging
 import datetime
 import tempfile
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,7 +16,7 @@ from osgeo import gdal, osr, ogr
 
 from shapely.wkt import loads
 from shapely.ops import unary_union
-from shapely import buffer, difference
+from shapely import buffer, difference, set_precision
 from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, box, Polygon, MultiPolygon
 import geopandas as gpd
 
@@ -319,6 +322,41 @@ def coords_in_poly(poly, res, poly_buffer=None):
     return coords
     
 
+class RoundGeometriesPrecision:
+    KILOMETERS = 'KILOMETERS'
+    METERS = 'METERS'
+    CENTIMETERS = 'CENTIMETERS'
+    
+    crs_ndecimal_map = {
+        'PROJECTED': {      # unità in metri (es. UTM, WebMercator)
+            'KILOMETERS': 0,   # 1 km ≈ nessun decimale
+            'METERS': 1,       # 0.1 m (10 cm)
+            'CENTIMETERS': 2   # 0.01 m (1 cm)
+        },
+        'GEOGRAPHIC': {     # unità in gradi (es. EPSG:4326)
+            'KILOMETERS': 3,   # ~100 m (approssimato)
+            'METERS': 5,       # ~1 m
+            'CENTIMETERS': 7   # ~1 cm
+        }
+    }
+    
+def round_geometries(gdf, decimals=None, precision=RoundGeometriesPrecision.METERS):
+    """
+    Round the coordinates of geometries in a GeoDataFrame to a specified number of decimal places.
+    If decimals is None, it defaults to meters precision (based on gdf crs).
+    """
+    
+    if decimals is None:
+        if crs_is_projected(get_geodataframe_crs(gdf)):
+            decimals = RoundGeometriesPrecision.crs_ndecimal_map['PROJECTED'][precision]
+        else:
+            decimals = RoundGeometriesPrecision.crs_ndecimal_map['GEOGRAPHIC'][precision]
+    
+    grid_size = 10 ** (-decimals)
+    gdf["geometry"] = gdf["geometry"].apply(lambda geom: set_precision(geom, grid_size))
+    
+    return gdf
+
 
 def get_raster_crs(raster_filename):
     """
@@ -445,3 +483,55 @@ def raster_sample_area(raster, area):
         masked_values = masked_values[masked_values != nodata]
         
     return masked_values
+
+
+class JsonWriterMethod:
+    DUMP = 'DUMP'
+    DUMP_PRETTY = 'DUMP_PRETTY'
+    STDLIB = 'STD_LIB'
+    ORJSON = 'ORJSON'
+    
+def write_geojson(feature_collection, local_output, method=JsonWriterMethod.ORJSON):
+    """
+    Write a GeoJSON feature collection to a file using the specified method.
+    """
+    
+    def write_geojson_stdlib(feature_collection, local_output):
+        Path(local_output).parent.mkdir(parents=True, exist_ok=True)
+        with open(local_output, "w", encoding="utf-8", buffering=1024*1024) as f:
+            json.dump(
+                feature_collection, f,
+                ensure_ascii=False,        # UTF-8 puro, niente \uXXXX
+                separators=(",", ":"),     # compatto (niente spazi superflui)
+                indent=None                # niente pretty-print
+            )
+        return local_output
+
+
+    def write_geojson_orjson(feature_collection, local_output):
+        Path(local_output).parent.mkdir(parents=True, exist_ok=True)
+        data = orjson.dumps(
+            feature_collection,
+            # aggiungi opzioni se ti servono, es. orjson.OPT_STRICT_INTEGER o OPT_PASSTHROUGH_DATETIME
+        )
+        with open(local_output, "wb", buffering=1024*1024) as f:
+            f.write(data)
+        return local_output
+    
+    if method == JsonWriterMethod.ORJSON:
+        return write_geojson_orjson(feature_collection, local_output)
+    elif method == JsonWriterMethod.STDLIB:
+        return write_geojson_stdlib(feature_collection, local_output)
+    elif method == JsonWriterMethod.DUMP:
+        Path(local_output).parent.mkdir(parents=True, exist_ok=True)
+        with open(local_output, "w", encoding="utf-8", buffering=1024*1024) as f:
+            json.dump(feature_collection, f)
+        return local_output
+    elif method == JsonWriterMethod.DUMP_PRETTY:
+        Path(local_output).parent.mkdir(parents=True, exist_ok=True)
+        with open(local_output, "w", encoding="utf-8", buffering=1024*1024) as f:
+            json.dump(feature_collection, f, indent=2, ensure_ascii=False)
+        return local_output
+    
+    else:
+        raise ValueError(f"Unsupported method: {method}")
