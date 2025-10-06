@@ -27,7 +27,8 @@ dependencies = [
     "leafmap",
     "boto3",
     "xarray",
-    "rioxarray"
+    "rioxarray",
+    "orjson"
 ]
 
 [project.optional-dependencies]

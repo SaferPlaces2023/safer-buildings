@@ -19,10 +19,15 @@ def prepare_feture_collection(
     Prepare a GeoJSON FeatureCollection from the flooded buildings data.
     """
     
+    # DOC: To target CRS
     flooded_buildings = flooded_buildings.to_crs(t_srs)
+    # DOC: round geometries to centimeters
+    flooded_buildings = _utils.round_geometries(flooded_buildings, precision=_utils.RoundGeometriesPrecision.CENTIMETERS)
+    # DOC: ensure columns are serializable and convert to GeoDict
     flooded_buildings = _utils.safe_json_df(flooded_buildings)
     feature_collection = flooded_buildings.to_geo_dict()
     
+    # DOC: Add metadata and CRS urn-code to the feature collection
     feature_collection['metadata'] = {
         'buildings_count': len(flooded_buildings),
         'flooded_buildings_count': int(flooded_buildings[_consts._COL_IS_FLOODED].sum()),
@@ -54,27 +59,26 @@ def save_results(
     # DOC: Postifx is used for addtitional files, e.g. additional operations output
     if out_postfix:
         out = filesystem.forceext(out, f"{out_postfix}.{out_ext}")
-
-    # DOC: Read the feature collection and convert to GeoDataFrame (useful for saving file in different formats)
-    if len(feature_collection.get('features', [])) > 0:
-        gdf_fc = gpd.GeoDataFrame.from_features(feature_collection['features'], crs=feature_collection['crs']['properties']['name'])
-    else:
-        gdf_fc = gpd.GeoDataFrame(geometry=[], crs=feature_collection['crs']['properties']['name'])
-
+    
     # DOC: If the output is S3, local output is a temporary file
     if out.startswith('s3://'):
         local_output = _utils.temp_filename(ext=out_ext, prefix='safer-buildings_out')
     
-    # DOC: Save the GeoDataFrame to the local output file
-    gdf_fc.to_file(filename=local_output, driver=filesystem._GPD_DRIVERS(out_ext))
-    
-    # DOC: If the output is GeoJSON, restore its metadata
-    if out_ext == 'geojson' and 'metadata' in feature_collection:
-        with open(local_output, 'r', encoding='utf8') as f:
-            data = json.load(f)
-            data['metadata'] = feature_collection['metadata']
-        with open(local_output, 'w', encoding='utf8') as f:
-            json.dump(data, f, indent=2)
+    if out_ext == 'geojson':    
+        # DOC: If the output is GeoJSON, save the feature collection directly to a file
+        _utils.write_geojson(
+            feature_collection = feature_collection, 
+            local_output = local_output, 
+            method = _utils.JsonWriterMethod.ORJSON
+        )
+    else:
+        # DOC: Read the feature collection and convert to GeoDataFrame (useful for saving file in different formats)
+        if len(feature_collection.get('features', [])) > 0:
+            gdf_fc = gpd.GeoDataFrame.from_features(feature_collection['features'], crs=feature_collection['crs']['properties']['name'])
+        else:
+            gdf_fc = gpd.GeoDataFrame(geometry=[], crs=feature_collection['crs']['properties']['name'])
+        # DOC: Save the GeoDataFrame to the local output file
+        gdf_fc.to_file(filename=local_output, driver=filesystem._GPD_DRIVERS(out_ext))
     
     # DOC: Keep track of auxiliary files based on the output format
     local_output = [local_output] + filesystem.get_aux_files(local_output)

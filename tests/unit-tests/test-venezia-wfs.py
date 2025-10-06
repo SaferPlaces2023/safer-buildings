@@ -30,17 +30,17 @@ class Test(unittest.TestCase):
             "water": "s3://saferplaces.co/Venezia/WaterDepthsv2/ICON_2I_SURFACE_PRESSURE_LEVELS_tp/2025-07-28/00-00/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h.tif", #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h.tif"
             "building": "s3://saferplaces.co/Venezia/shapes/buildings/building_2.shp", #,
             # "building": "s3://saferplaces.co/Venezia/shapes/buildings/venezia_wfs_critical_sites_2.gpkg",
-            "wd_thresh": 0.5,
+            "wd_thresh": 0.1,
             # "bbox": bbox_lotto_1,
-            "out": "s3://saferplaces.co/Venezia/SaferBuildings/gpkg/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2_-all-add-ops.gpkg",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
+            "out": "s3://saferplaces.co/Venezia/SaferBuildings/gpkg/water_depth_bacino2_forecast_acc_12h_2025-07-28_00-00_01h-12h__building_2_-all-add-ops-opt-local.geojson",  #"s3://saferplaces.co/Safer-Buildings/test/venezia-wd-400mm-1h-flood-buildings-add-ops.geojson",
             "t_srs": "EPSG:4326",
             # "provider": f'{_consts._VENEZIA_WFS_PROVIDER}', #/v_pc_p0106011_scuole',
             "provider": None, #f'{_consts._VENEZIA_WFS_CRITICAL_SITES_PROVIDER}',
             "filters": None,
             "only_flood": False,
-            "stats": False,
-            "summary": False,
-            # "summary_on": "subtype",    # None,
+            "stats": True,
+            "summary": True,
+            "summary_on": "subtype",    # None,
             "add_ops": {
                 module_add_ops.NearbyPumps.name: {
                     # "wd_buffer": 2000.0,

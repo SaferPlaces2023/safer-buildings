@@ -38,7 +38,7 @@ def pointify_waterdepth(
     gdf_wd = gpd.GeoDataFrame(
         {'wd_value': waterdepth_vals},
         geometry = points(x_coords, y_coords, waterdepth_vals),
-        crs = waterdepth_ds.rio.crs
+        crs = _utils.get_raster_crs(waterdepth_filename)
     )
     
     # DOC: Clip GeoDataFrame to bounding box if provided

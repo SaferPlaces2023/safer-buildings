@@ -22,7 +22,7 @@ class Test(unittest.TestCase):
             "building": "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/directed-rer-overture-buildings.gpkg", #"s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson", //"https://s3.us-east-1.amazonaws.com/saferplaces.co/Venezia/shapes/buildings/building_2.shp",
             "wd_thresh": 0.1,
             "bbox": None,
-            "out": "s3://saferplaces.co/Directed/data-fabric-rwl2/Rimini_coast_flooded_test-js-20250902-1329.geojson",
+            "out": "s3://saferplaces.co/Directed/data-fabric-rwl2/Rimini_coast_flooded_test-js-20251006-1217.geojson",
             "t_srs": None,
             "provider": None,
             "filters": None,
