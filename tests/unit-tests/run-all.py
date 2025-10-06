@@ -1,4 +1,5 @@
 import os
+import time
 import subprocess
 
 test_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,12 +18,14 @@ if __name__ == "__main__":
 
         print('=' * 40)
 
-        print(f'Start test {it+1}/{n_tests} - "{test}"...', '\n')
+        print(f'Start test {it+1}/{n_tests} — "{test}"...', '\n')
 
+        t0 = time.time()
         result = subprocess.run(['py', test_path], capture_output=True, text=True)
+        t1 = time.time()
         
         if result.returncode == 0:
-            print(f'"{test}" passed.')
+            print(f'"{test}" passed. — Execution time: {t1 - t0:.2f} seconds', '\n')
         else:
             print(f'"{test} failed with error:\n{result.stderr}', '\n')
 

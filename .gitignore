@@ -193,13 +193,14 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# Test folder
+# Test folder and files
 tests/*
 !tests/unit-tests/
 !tests/unit-tests/*.py
 /**/*.geojson
 /**/__pycache__/
 *.tif
+**/test*
 
 # Data folder
 data/venezia-buildings-overture-merge-wfs/building_datasets/

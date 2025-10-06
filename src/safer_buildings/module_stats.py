@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import MultiPolygon
-from shapely import intersects, intersection
+from shapely import points, get_coordinates
+from shapely.strtree import STRtree
 
 import xarray as xr
 import rioxarray
@@ -61,6 +61,60 @@ def filter_only_flood(
     return gdf
     
 
+def fast_compute_wd_stats(
+    waterdepth_gdf: gpd.GeoDataFrame,
+    buildings: gpd.GeoDataFrame,
+) -> gpd.GeoDataFrame:
+    """
+    Compute water depth statistics for flooded buildings.
+    This is an optimazed version leveraging rioxarray  + srtTree to compute water depth statistics.
+
+    Args:
+        waterdepth_filename (str): _description_
+        waterdepth_thresh (float): _description_
+        buildings (gpd.GeoDataFrame): _description_
+        flood_mode (str): _description_
+
+    Returns:
+        gpd.GeoDataFrame: _description_
+    """
+    
+    # DOC: Build an srtTree for fast spatial queries
+    wd_pointified_tree = STRtree(waterdepth_gdf.geometry.to_crs(_consts._EPSG_UTMxx).values)
+    # DOC: Query the tree for each building's flood ROI → this will return the water depth points that are contained within the flood ROIs
+    buildings_wd_query = wd_pointified_tree.query(buildings[_consts._COL_FLOOD_ROI].to_crs(_consts._EPSG_UTMxx).values, predicate='intersects')
+    
+    # DOC: Collect query building — wd-values
+    builidings_wd_idx = pd.DataFrame(
+        {
+            'bld_idx': buildings_wd_query[0],
+            'wd_values': get_coordinates(wd_pointified_tree.geometries.take(buildings_wd_query[1]), include_z=True)[:, 2]
+        }
+    )
+    stats_map = {
+        'flood_wd_min': lambda wd_vals: np.nanmin(wd_vals),
+        'flood_wd_25perc': lambda wd_vals: np.nanpercentile(wd_vals, 25),
+        'flood_wd_mean': lambda wd_vals: np.nanmean(wd_vals),
+        'flood_wd_median': lambda wd_vals: np.nanmedian(wd_vals),
+        'flood_wd_75perc': lambda wd_vals: np.nanpercentile(wd_vals, 75),
+        'flood_wd_max': lambda wd_vals: np.nanmax(wd_vals),
+    }
+    # DOC: Aggregate results by building index and apply stats functions
+    builidings_wd_idx = builidings_wd_idx.groupby('bld_idx').agg(list(stats_map.values()))
+    # DOC: Restore levels and columns name
+    builidings_wd_idx.columns = builidings_wd_idx.columns.to_flat_index()
+    builidings_wd_idx = builidings_wd_idx.reset_index()
+    builidings_wd_idx.columns = ['bld_idx', *stats_map.keys()]
+    
+    # DOC: Merge the statistics back to the original buildings GeoDataFrame
+    buildings = buildings.merge(
+        builidings_wd_idx,
+        left_index=True, right_on='bld_idx', how='left'
+    ).drop(columns=['bld_idx']).reset_index(drop=True)
+    
+    return buildings
+
+
 def compute_wd_stats(
     waterdepth_filename: str,
     waterdepth_mask: gpd.GeoDataFrame,
@@ -80,7 +134,7 @@ def compute_wd_stats(
         buildings = module_flood.compute_flood_roi_geometry(buildings, flood_mode)
         
     if _consts._COL_FLOOD_AREA not in buildings.columns:
-        buildings = module_flood.compute_flood_area(waterdepth_mask, buildings)
+        buildings = module_flood.compute_poly_flood_area(waterdepth_mask, buildings)
     
     if _consts._COL_IS_FLOODED not in buildings.columns:
         buildings = module_flood.compute_flooded_buildings(buildings)

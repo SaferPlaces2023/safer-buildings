@@ -128,8 +128,13 @@ def compute_flood(
         
         # DOC: 3 — Polygonize waterdepth (compute one time and reuse for multiple providers)
         try:
-            Logger.debug('# Processing water depth data (raster to polygon) ...')
-            waterdepth_polygonized = module_flood.poligonyze_waterdepth(
+            Logger.debug('# Processing water depth data (raster to points) ...')
+            # waterdepth_polygonized = module_flood.poligonyze_waterdepth(
+            #     waterdepth_filename = waterdepth_filename,
+            #     wd_threshold = wd_thresh,
+            #     bbox = bbox
+            # )
+            waterdepth_pointified = module_flood.pointify_waterdepth(
                 waterdepth_filename = waterdepth_filename,
                 wd_threshold = wd_thresh,
                 bbox = bbox
@@ -142,7 +147,7 @@ def compute_flood(
         try:
             Logger.debug('# Intersecting buildings with water depth ...')
             flooded_buildings = module_flood.get_flooded_buildings(
-                waterdepth_gdf = waterdepth_polygonized,
+                waterdepth_gdf = waterdepth_pointified,
                 buildings = provider_buildings,
                 flood_mode = flood_mode
             )
@@ -165,12 +170,9 @@ def compute_flood(
         try:
             if compute_stats:
                 Logger.debug('# Computing water depth stats over flooded buildings ...')
-                flooded_buildings = module_stats.compute_wd_stats(
-                    waterdepth_filename = waterdepth_filename,
-                    waterdepth_mask = waterdepth_polygonized,
-                    waterdepth_thresh = wd_thresh,
+                flooded_buildings = module_stats.fast_compute_wd_stats(
+                    waterdepth_gdf = waterdepth_pointified,
                     buildings = flooded_buildings,
-                    flood_mode = flood_mode
                 )
                 Logger.debug("## Water depth stats computed for flooded buildings.")
         except Exception as e:
@@ -212,6 +214,20 @@ def compute_flood(
         try:
             add_ops_output_data = dict()
             if add_ops is not None:
+                
+                # DOC: 9.1 — Polygonize waterdepth
+                # TODO: This will be removed in future versions, as faster methods (see module_flood.pointify_waterdepth) can be used.
+                try:
+                    Logger.debug('# Processing water depth data (raster to polygon) ...')
+                    waterdepth_polygonized = module_flood.poligonyze_waterdepth(
+                        waterdepth_filename = waterdepth_filename,
+                        wd_threshold = wd_thresh,
+                        bbox = bbox
+                    )
+                except Exception as e:
+                    raise FloodException.from_exception(e)
+                
+                # DOC: 9.2 — Run additional operations
                 for op in add_ops:
                     Logger.debug(f'# Running additional operation: {op.name}...')
                     # DOC: Handle Additional Operation execution with its proper arguments
