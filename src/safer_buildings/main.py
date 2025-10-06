@@ -165,9 +165,17 @@ def compute_flood(
         try:
             if compute_stats:
                 Logger.debug('# Computing water depth stats over flooded buildings ...')
-                flooded_buildings = module_stats.compute_wd_stats(
+                # DOC: [OLD-WAY] Compute water depth stats over flooded buildings
+                # flooded_buildings = module_stats.compute_wd_stats(
+                #     waterdepth_filename = waterdepth_filename,
+                #     waterdepth_mask = waterdepth_polygonized,
+                #     waterdepth_thresh = wd_thresh,
+                #     buildings = flooded_buildings,
+                #     flood_mode = flood_mode
+                # )
+                # DOC: [NEW-WAY] Compute water depth stats over flooded buildings
+                flooded_buildings = module_stats.fast_compute_wd_stats(
                     waterdepth_filename = waterdepth_filename,
-                    waterdepth_mask = waterdepth_polygonized,
                     waterdepth_thresh = wd_thresh,
                     buildings = flooded_buildings,
                     flood_mode = flood_mode
