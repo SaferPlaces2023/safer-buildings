@@ -62,10 +62,8 @@ def filter_only_flood(
     
 
 def fast_compute_wd_stats(
-    waterdepth_filename: str,
-    waterdepth_thresh: float,
+    waterdepth_gdf: gpd.GeoDataFrame,
     buildings: gpd.GeoDataFrame,
-    flood_mode: str
 ) -> gpd.GeoDataFrame:
     """
     Compute water depth statistics for flooded buildings.
@@ -80,38 +78,17 @@ def fast_compute_wd_stats(
     Returns:
         gpd.GeoDataFrame: _description_
     """
-
-    # DOC: Open wd tif as rioxarray dataset
-    waterdepth_ds = rioxarray.open_rasterio(waterdepth_filename).sel(band=1)
-    
-    # DOC: Read valueas and corrds as numpy arrays
-    waterdepth_vals = waterdepth_ds.data
-    x_coords = waterdepth_ds.x.values
-    y_coords = waterdepth_ds.y.values
-    
-    # DOC: Filter water depth values by threshold
-    y_idxs, x_idxs = np.where(waterdepth_vals > waterdepth_thresh)
-    x_coords = x_coords[x_idxs]
-    y_coords = y_coords[y_idxs]
-    waterdepth_vals = waterdepth_vals[y_idxs, x_idxs]
-    
-    # DOC: Create a GeoDataFrame with water depth points
-    gdf_wd = gpd.GeoDataFrame(
-        {'wd_value': waterdepth_vals},
-        geometry = points(x_coords, y_coords, waterdepth_vals),
-        crs = waterdepth_ds.rio.crs
-    )
     
     # DOC: Build an srtTree for fast spatial queries
-    gdf_wd_tree = STRtree(gdf_wd.geometry.to_crs(_consts._EPSG_UTMxx).values)
+    wd_pointified_tree = STRtree(waterdepth_gdf.geometry.to_crs(_consts._EPSG_UTMxx).values)
     # DOC: Query the tree for each building's flood ROI → this will return the water depth points that are contained within the flood ROIs
-    buildings_wd_query = gdf_wd_tree.query(buildings[_consts._COL_FLOOD_ROI].to_crs(_consts._EPSG_UTMxx).values, predicate='contains')
+    buildings_wd_query = wd_pointified_tree.query(buildings[_consts._COL_FLOOD_ROI].to_crs(_consts._EPSG_UTMxx).values, predicate='intersects')
     
     # DOC: Collect query building — wd-values
     builidings_wd_idx = pd.DataFrame(
         {
             'bld_idx': buildings_wd_query[0],
-            'wd_values': get_coordinates(gdf_wd_tree.geometries.take(buildings_wd_query[1]), include_z=True)[:, 2]
+            'wd_values': get_coordinates(wd_pointified_tree.geometries.take(buildings_wd_query[1]), include_z=True)[:, 2]
         }
     )
     stats_map = {
@@ -157,7 +134,7 @@ def compute_wd_stats(
         buildings = module_flood.compute_flood_roi_geometry(buildings, flood_mode)
         
     if _consts._COL_FLOOD_AREA not in buildings.columns:
-        buildings = module_flood.compute_flood_area(waterdepth_mask, buildings)
+        buildings = module_flood.compute_poly_flood_area(waterdepth_mask, buildings)
     
     if _consts._COL_IS_FLOODED not in buildings.columns:
         buildings = module_flood.compute_flooded_buildings(buildings)
