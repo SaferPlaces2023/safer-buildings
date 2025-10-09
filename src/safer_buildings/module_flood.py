@@ -127,6 +127,8 @@ def compute_points_flood_area(
     
     buildings[_consts._COL_FLOOD_AREA] = gpd.GeoSeries([MultiPoint(points=[]) for _ in range(len(buildings))], crs=buildings.crs)
     
+    waterdepth_gdf.reset_index(drop=True, inplace=True)
+    
     wd_tree = STRtree(waterdepth_gdf.to_crs(crs=_consts._EPSG_UTMxx).geometry.values)
     building_wd_query = wd_tree.query(buildings[_consts._COL_FLOOD_ROI].to_crs(crs=_consts._EPSG_UTMxx).values, predicate='intersects')
     

@@ -353,6 +353,7 @@ def round_geometries(gdf, decimals=None, precision=RoundGeometriesPrecision.METE
             decimals = RoundGeometriesPrecision.crs_ndecimal_map['GEOGRAPHIC'][precision]
     
     grid_size = 10 ** (-decimals)
+    gdf["geometry"] = gdf["geometry"].buffer(0)
     gdf["geometry"] = gdf["geometry"].apply(lambda geom: set_precision(geom, grid_size))
     
     return gdf
