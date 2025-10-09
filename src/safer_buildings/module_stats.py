@@ -210,8 +210,8 @@ def compute_wd_summary(
             class_column = 'subtype'
         elif provider.startswith(_consts._RER_REST_PROVIDER) and 'service_class' in buildings.columns:
             class_column = 'service_class'
-        elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER) and 'service_id' in buildings.columns:
-            class_column = 'service_id'
+        elif provider.startswith(_consts._VENEZIA_WFS_PROVIDER) and 'service_label' in buildings.columns:
+            class_column = 'service_label'
         else:
             return summary
     else:

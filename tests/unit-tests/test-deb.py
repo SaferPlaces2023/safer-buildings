@@ -18,27 +18,27 @@ class Test(unittest.TestCase):
         """
         
         args = {
-            "water": "s3://saferplaces.co/Directed/data-fabric-rwl2/WD_radar_saferplaces_0fw6zyg.tif",
-            "building": "s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/directed-rer-overture-buildings.gpkg", #"s3://saferplaces.co/Directed/process_out/SaferBuildingsService/Data/buildings-default-area__rer-rest_overture.geojson", //"https://s3.us-east-1.amazonaws.com/saferplaces.co/Venezia/shapes/buildings/building_2.shp",
+            "water": "s3://saferplaces.co/SaferCast-Venezia/waterdepths/safer_rain/WD_custom_saferplaces_wwi7ufv.tif",
+            "building": "s3://saferplaces.co/SaferCast-Venezia/safer-buildings-data/buildings/safercast-venezia-buildings-venezia-wfs-critical-sites.geojson",
             "wd_thresh": 0.1,
             "bbox": None,
-            "out": "s3://saferplaces.co/Directed/data-fabric-rwl2/Rimini_coast_flooded_test-js-20251006-1217.geojson",
+            "out": "s3://saferplaces.co/SaferCast-Venezia/safer-buildings-data/out/SAFER_BUILDINGS_wwi7ufv.geojson",
             "t_srs": None,
             "provider": None,
             "filters": None,
             "only_flood": False,
             "stats": True,
             "summary": True,
-            "summary_on": "subtype",
+            "flood_mode": "IN-AREA",
+            "summary_on": ["service_label"],
             "out_geojson": False,
-
             "version": False,
             "debug": True,
             "verbose": False,
-
             # "token": "S4fer_api_token",
-            # "user": "saferplaces",
+            # "user": "saferplaces"
         }
+
 
     
         result = main_python( ** args )

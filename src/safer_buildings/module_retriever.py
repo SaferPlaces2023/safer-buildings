@@ -173,6 +173,7 @@ def retrieve_venezia_wfs(provider, bbox, buffer_points=True):
         wfs_gdf = gpd.read_file(geojson_io).set_crs(crs=params['srsName']).to_crs(bbox.crs)
         wfs_gdf = wfs_gdf.cx[bounds[0]:bounds[2], bounds[1]:bounds[3]]
         wfs_gdf['service_id'] = service_id
+        wfs_gdf['service_label'] = wfs_gdf['service_id'].apply(lambda service_id: _consts._VENEZIA_WFS_NAME2LABEL_MAP.get(service_id, service_id))
         gdf_layers.append(wfs_gdf)
         Logger.debug(f"### Retrieved {len(wfs_gdf)} features from {service_id} {_consts._VENEZIA_WFS_PROVIDER} service.")
 
